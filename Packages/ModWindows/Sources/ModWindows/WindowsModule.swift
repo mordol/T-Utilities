@@ -21,7 +21,7 @@ public final class WindowsModule: TUModule {
         displayName: "Windows",
         symbol: "macwindow",
         requiredPermissions: [.accessibility],
-        conflictingBundleIDs: ["com.knollsoft.Rectangle"]
+        conflictingBundleIDs: ["com.knollsoft.Rectangle", "org.dmarcotte.Easy-Move-Resize"]
     )
 
     /// A window maximized by us and where it was before, so pressing Maximize again restores it.
