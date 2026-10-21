@@ -71,6 +71,7 @@ public final class WindowsModule: TUModule {
     public func start() async throws {
         if edgeVerticalFill { edgeSnap.start() }
         modifierDragController.modifiers = modifierDragKeys
+        modifierDragController.onDoubleClick = { [weak self] window in self?.perform(.maximize, on: window) }
         if modifierDrag { modifierDragController.start() }
     }
 
@@ -97,12 +98,13 @@ public final class WindowsModule: TUModule {
 
     // MARK: - Actions
 
-    func perform(_ action: WindowLayout.Action) {
+    /// Acts on `target`, or the frontmost app's focused window when nil (hotkeys).
+    func perform(_ action: WindowLayout.Action, on target: AXWindow? = nil) {
         guard Permission.accessibility.isGranted else {
             Permission.accessibility.request()
             return
         }
-        guard let window = AXWindow.frontmost(), !window.isSheet,
+        guard let window = target ?? AXWindow.frontmost(), !window.isSheet,
               let axFrame = window.frame,
               let primaryMaxY = NSScreen.screens.first?.frame.maxY else {
             NSSound.beep()
@@ -229,7 +231,7 @@ private struct WindowsSettingsView: View {
             } header: {
                 Text("수정키 드래그")
             } footer: {
-                Text("수정키를 누른 채 창 안을 끌면 이동하고, 오른쪽 버튼으로 끌면 커서가 있는 모서리 쪽으로 크기를 조절합니다. 수정키를 누른 클릭은 아래 앱에 전달되지 않습니다. easy-move-resize를 참고했습니다.")
+                Text("수정키를 누른 채 창 안을 끌면 이동하고, 오른쪽 버튼으로 끌면 커서가 있는 모서리 쪽으로 크기를 조절합니다. 수정키를 누른 채 더블클릭하면 최대화하고, 다시 더블클릭하면 이전 크기로 돌아갑니다. 수정키를 누른 클릭은 아래 앱에 전달되지 않습니다. easy-move-resize를 참고했습니다.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {

@@ -51,6 +51,15 @@ enum ModifierDragLogic {
         let vertical: Vertical
     }
 
+    enum MouseDownAction: Equatable { case passThrough, move, resize, toggleMaximize }
+
+    /// An armed left double-click toggles maximize (Rectangle-style) instead of starting a second move.
+    static func mouseDownAction(isRightButton: Bool, clickCount: Int64, modifiersMatch: Bool) -> MouseDownAction {
+        guard modifiersMatch else { return .passThrough }
+        if isRightButton { return .resize }
+        return clickCount == 2 ? .toggleMaximize : .move
+    }
+
     static func moved(_ start: CGRect, by delta: CGPoint) -> CGRect {
         start.offsetBy(dx: delta.x, dy: delta.y)
     }

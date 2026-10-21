@@ -17,10 +17,14 @@ final class ModifierDragController {
     }
 
     var modifiers: DragModifiers = .default
+    /// Armed left double-click on a window; called on the main actor after the tap returns.
+    var onDoubleClick: ((AXWindow) -> Void)?
 
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var session: Session?
+    /// The double-click's own drag/up are swallowed too, so the app never sees half a click.
+    private var swallowsUntilUp = false
     private var supervisor: Task<Void, Never>?
 
     /// How long clicks can stall after Accessibility is lost while the tap is active.
@@ -111,16 +115,36 @@ final class ModifierDragController {
         case .leftMouseDown, .rightMouseDown:
             session?.writer.finish()
             session = nil
-            guard modifiers.matches(event.flags), let started = begin(isResize: type == .rightMouseDown, at: event.location) else {
+            swallowsUntilUp = false
+            let action = ModifierDragLogic.mouseDownAction(
+                isRightButton: type == .rightMouseDown,
+                clickCount: event.getIntegerValueField(.mouseEventClickState),
+                modifiersMatch: modifiers.matches(event.flags)
+            )
+            switch action {
+            case .passThrough:
                 return false
+            case .toggleMaximize:
+                guard let window = AXWindow.at(event.location), !window.isSheet else { return false }
+                swallowsUntilUp = true
+                // Resizing is a synchronous AX round trip; keep it out of the tap callback.
+                Task { @MainActor [weak self] in self?.onDoubleClick?(window) }
+                return true
+            case .move, .resize:
+                guard let started = begin(isResize: action == .resize, at: event.location) else { return false }
+                session = started
+                return true
             }
-            session = started
-            return true
         case .leftMouseDragged, .rightMouseDragged:
+            if swallowsUntilUp { return true }
             guard let session else { return false }
             update(session, cursor: event.location)
             return true
         case .leftMouseUp, .rightMouseUp:
+            if swallowsUntilUp {
+                swallowsUntilUp = false
+                return true
+            }
             guard let session else { return false }
             session.writer.finish()
             self.session = nil

@@ -64,6 +64,27 @@ struct ModifierDragTests {
     }
 }
 
+struct ModifierDoubleClickTests {
+    @Test func armedLeftDoubleClickTogglesMaximize() {
+        #expect(ModifierDragLogic.mouseDownAction(isRightButton: false, clickCount: 2, modifiersMatch: true) == .toggleMaximize)
+    }
+
+    @Test func armedSingleClickStillMovesOrResizes() {
+        #expect(ModifierDragLogic.mouseDownAction(isRightButton: false, clickCount: 1, modifiersMatch: true) == .move)
+        #expect(ModifierDragLogic.mouseDownAction(isRightButton: true, clickCount: 1, modifiersMatch: true) == .resize)
+    }
+
+    @Test func tripleClickAndRightDoubleClickDoNotToggle() {
+        #expect(ModifierDragLogic.mouseDownAction(isRightButton: false, clickCount: 3, modifiersMatch: true) == .move)
+        #expect(ModifierDragLogic.mouseDownAction(isRightButton: true, clickCount: 2, modifiersMatch: true) == .resize)
+    }
+
+    @Test func unarmedDoubleClickPassesThrough() {
+        #expect(ModifierDragLogic.mouseDownAction(isRightButton: false, clickCount: 2, modifiersMatch: false) == .passThrough)
+        #expect(ModifierDragLogic.mouseDownAction(isRightButton: true, clickCount: 1, modifiersMatch: false) == .passThrough)
+    }
+}
+
 struct DragModifierConflictTests {
     @Test func singleModifiersWarnCombinationsDont() {
         #expect(DragModifiers.option.conflictWarning != nil)
