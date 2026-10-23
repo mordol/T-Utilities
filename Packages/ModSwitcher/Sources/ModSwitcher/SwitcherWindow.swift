@@ -71,6 +71,13 @@ enum SwitcherWindows {
         NSRunningApplication(processIdentifier: window.pid)?.activate()
     }
 
+    /// Presses the window's close button, like clicking it. Returns whether the press went through; the app
+    /// may still keep the window open (e.g. to ask about unsaved changes).
+    static func close(_ window: SwitcherWindow) -> Bool {
+        guard let button: AXUIElement = window.element.attribute(kAXCloseButtonAttribute) else { return false }
+        return AXUIElementPerformAction(button, kAXPressAction as CFString) == .success
+    }
+
     /// On-screen normal-layer windows, front to back.
     private static func onScreenCandidates() -> [WindowCandidate] {
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]

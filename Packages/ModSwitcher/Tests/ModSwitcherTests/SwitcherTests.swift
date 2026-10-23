@@ -60,6 +60,16 @@ struct KeyMachineTests {
         #expect(m.handle(.flagsChanged, flags: []) == .passThrough)
     }
 
+    @Test func upDownMoveByRow() {
+        var m = machine()
+        #expect(m.handle(.keyDown(.up), flags: .maskAlternate) == .passThrough)
+        _ = m.handle(.keyDown(.tab), flags: .maskAlternate)
+        #expect(SwitcherKey(keyCode: 126) == .up)
+        #expect(SwitcherKey(keyCode: 125) == .down)
+        #expect(m.handle(.keyDown(.up), flags: .maskAlternate) == .init(command: .moveRow(-1), swallow: true))
+        #expect(m.handle(.keyDown(.down), flags: .maskAlternate) == .init(command: .moveRow(1), swallow: true))
+    }
+
     @Test func releasingTheTriggerCommits() {
         var m = machine()
         _ = m.handle(.keyDown(.tab), flags: .maskAlternate)
@@ -106,6 +116,36 @@ struct SwitcherLogicTests {
         #expect(SwitcherLogic.moved(1, by: 1, count: 4) == 2)
         #expect(SwitcherLogic.moved(0, by: -9, count: 4) == 3)
         #expect(SwitcherLogic.moved(0, by: 1, count: 0) == 0)
+    }
+
+    @Test func rowMoveKeepsColumnAndWraps() {
+        // 4 columns, 10 windows: rows 0-3, 4-7, 8-9.
+        #expect(SwitcherLogic.movedRow(1, by: 1, columns: 4, count: 10) == 5)
+        #expect(SwitcherLogic.movedRow(5, by: 1, columns: 4, count: 10) == 9)
+        #expect(SwitcherLogic.movedRow(9, by: 1, columns: 4, count: 10) == 1)
+        #expect(SwitcherLogic.movedRow(1, by: -1, columns: 4, count: 10) == 9)
+        // The short last row has no column 2: skip it.
+        #expect(SwitcherLogic.movedRow(6, by: 1, columns: 4, count: 10) == 2)
+        #expect(SwitcherLogic.movedRow(2, by: -1, columns: 4, count: 10) == 6)
+        // A single row stays put.
+        #expect(SwitcherLogic.movedRow(2, by: 1, columns: 4, count: 3) == 2)
+        #expect(SwitcherLogic.movedRow(0, by: 1, columns: 4, count: 0) == 0)
+    }
+
+    @Test func hoverSelectsOnlyInHoverMode() {
+        #expect(SwitcherLogic.selectionAfterHover(1, hovered: 3, mode: .hover) == 3)
+        #expect(SwitcherLogic.selectionAfterHover(1, hovered: 3, mode: .click) == 1)
+    }
+
+    @Test func selectionAfterRemovingAWindow() {
+        // Removing before the selection keeps the same window selected.
+        #expect(SwitcherLogic.selectionAfterRemoving(0, selected: 2, count: 4) == 1)
+        // Removing after it changes nothing.
+        #expect(SwitcherLogic.selectionAfterRemoving(3, selected: 1, count: 4) == 1)
+        // Removing the selected window selects its successor, or the new last one at the end.
+        #expect(SwitcherLogic.selectionAfterRemoving(1, selected: 1, count: 4) == 1)
+        #expect(SwitcherLogic.selectionAfterRemoving(4, selected: 4, count: 4) == 3)
+        #expect(SwitcherLogic.selectionAfterRemoving(0, selected: 0, count: 0) == 0)
     }
 
     @Test func initialSelection() {

@@ -14,11 +14,16 @@ private enum Metrics {
 @MainActor
 @Observable
 final class SwitcherModel {
-    let windows: [SwitcherWindow]
+    var windows: [SwitcherWindow]
     let columns: Int
+    /// Index into `windows`, like every index below.
     var selected: Int
+    /// The window under the pointer; its close button is shown.
+    var hovered: Int?
     var thumbnails: [CGWindowID: NSImage] = [:]
     @ObservationIgnored var onClick: (Int) -> Void = { _ in }
+    @ObservationIgnored var onHover: (Int) -> Void = { _ in }
+    @ObservationIgnored var onClose: (Int) -> Void = { _ in }
 
     init(windows: [SwitcherWindow], columns: Int, selected: Int) {
         self.windows = windows
@@ -39,10 +44,14 @@ private final class SwitcherPanel: NSPanel {
 final class SwitcherPresenter {
     /// Thumbnails are captured only when this returns true.
     var capturesThumbnails: () -> Bool = { true }
+    var mouseMode: () -> SwitcherMouseMode = { .click }
 
     private var panel: NSPanel?
     private var model: SwitcherModel?
     private var captureTask: Task<Void, Never>?
+    /// Pointer location when the panel opened. The panel can appear under a resting pointer, which must not
+    /// select anything until it really moves.
+    private var openingMouseLocation: NSPoint?
 
     func handle(_ command: SwitcherCommand) {
         switch command {
@@ -55,6 +64,9 @@ final class SwitcherPresenter {
         case .move(let delta):
             guard let model else { return }
             model.selected = SwitcherLogic.moved(model.selected, by: delta, count: model.windows.count)
+        case .moveRow(let delta):
+            guard let model else { return }
+            model.selected = SwitcherLogic.movedRow(model.selected, by: delta, columns: model.columns, count: model.windows.count)
         case .cancel:
             close()
         case .commit:
@@ -68,6 +80,22 @@ final class SwitcherPresenter {
         panel?.orderOut(nil)
         panel = nil
         model = nil
+        openingMouseLocation = nil
+    }
+
+    private func hover(_ index: Int) {
+        guard let model, NSEvent.mouseLocation != openingMouseLocation else { return }
+        openingMouseLocation = nil
+        model.selected = SwitcherLogic.selectionAfterHover(model.selected, hovered: index, mode: mouseMode())
+    }
+
+    /// Closes the window and drops it from the list; the switcher stays open unless it was the last one.
+    private func closeWindow(_ index: Int) {
+        guard let model, SwitcherWindows.close(model.windows[index]) else { return }
+        model.windows.remove(at: index)
+        model.hovered = nil
+        guard !model.windows.isEmpty else { return close() }
+        model.selected = SwitcherLogic.selectionAfterRemoving(index, selected: model.selected, count: model.windows.count)
     }
 
     private func commit(_ index: Int? = nil) {
@@ -102,6 +130,8 @@ final class SwitcherPresenter {
             selected: SwitcherLogic.initialSelection(count: windows.count, backward: backward)
         )
         model.onClick = { [weak self] in self?.commit($0) }
+        model.onHover = { [weak self] in self?.hover($0) }
+        model.onClose = { [weak self] in self?.closeWindow($0) }
 
         let panel = SwitcherPanel(
             contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless, .nonactivatingPanel],
@@ -120,6 +150,7 @@ final class SwitcherPresenter {
 
         self.model = model
         self.panel = panel
+        openingMouseLocation = NSEvent.mouseLocation
         startCapture(for: model, scale: screen.backingScaleFactor)
     }
 
@@ -148,19 +179,31 @@ private struct SwitcherGridView: View {
                     columns: Array(repeating: GridItem(.fixed(Metrics.cellWidth), spacing: Metrics.spacing), count: model.columns),
                     spacing: Metrics.spacing
                 ) {
-                    ForEach(model.windows) { window in
+                    ForEach(Array(model.windows.enumerated()), id: \.element.id) { index, window in
                         SwitcherCell(
                             window: window, thumbnail: window.windowID.flatMap { model.thumbnails[$0] },
-                            isSelected: window.id == model.selected
+                            isSelected: index == model.selected,
+                            showsCloseButton: index == model.selected || index == model.hovered,
+                            onClose: { model.onClose(index) }
                         )
                         .id(window.id)
-                        .onTapGesture { model.onClick(window.id) }
+                        .onTapGesture { model.onClick(index) }
+                        .onHover { inside in
+                            if inside {
+                                model.hovered = index
+                                model.onHover(index)
+                            } else if model.hovered == index {
+                                model.hovered = nil
+                            }
+                        }
                     }
                 }
                 .padding(Metrics.padding)
             }
             .scrollBounceBehavior(.basedOnSize)
-            .onChange(of: model.selected) { _, selected in proxy.scrollTo(selected) }
+            .onChange(of: model.selected) { _, selected in
+                if model.windows.indices.contains(selected) { proxy.scrollTo(model.windows[selected].id) }
+            }
         }
         .frame(width: size.width, height: size.height)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -171,6 +214,8 @@ private struct SwitcherCell: View {
     let window: SwitcherWindow
     let thumbnail: NSImage?
     let isSelected: Bool
+    let showsCloseButton: Bool
+    let onClose: () -> Void
 
     var body: some View {
         VStack(spacing: 6) {
@@ -209,6 +254,19 @@ private struct SwitcherCell: View {
                 .fill(isSelected ? Color.accentColor.opacity(0.28) : .clear)
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(isSelected ? Color.accentColor : .clear, lineWidth: 2)
+        }
+        .overlay(alignment: .topTrailing) {
+            if showsCloseButton {
+                Button(action: onClose) {
+                    Image(systemName: "power.circle.fill")
+                        .font(.title2)
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, .red)
+                }
+                .buttonStyle(.plain)
+                .help("창 닫기")
+                .padding(2)
+            }
         }
         .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }

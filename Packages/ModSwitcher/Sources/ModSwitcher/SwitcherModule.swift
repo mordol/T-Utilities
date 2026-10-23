@@ -29,6 +29,10 @@ public final class SwitcherModule: TUModule {
         }
     }
 
+    var mouseMode: SwitcherMouseMode {
+        didSet { settings.set(mouseMode.rawValue, for: "mouseMode") }
+    }
+
     /// Off = no capture and no Screen Recording request: windows show their app icon and title only.
     var showsThumbnails: Bool {
         didSet { settings.set(showsThumbnails, for: "showsThumbnails") }
@@ -38,11 +42,13 @@ public final class SwitcherModule: TUModule {
         settings = context.settings
         trigger = SwitcherTrigger(rawValue: context.settings.value("trigger", default: SwitcherTrigger.option.rawValue)) ?? .option
         showsThumbnails = context.settings.value("showsThumbnails", default: true)
+        mouseMode = SwitcherMouseMode(rawValue: context.settings.value("mouseMode", default: SwitcherMouseMode.click.rawValue)) ?? .click
     }
 
     public func start() async throws {
         tapController.trigger = trigger
         presenter.capturesThumbnails = { [weak self] in self?.showsThumbnails ?? false }
+        presenter.mouseMode = { [weak self] in self?.mouseMode ?? .click }
         tapController.onCommand = { [weak self] in self?.presenter.handle($0) }
         tapController.start()
     }
@@ -94,7 +100,18 @@ private struct SwitcherSettingsView: View {
             } header: {
                 Text("단축키")
             } footer: {
-                Text("트리거 키를 누른 채 Tab을 누르면 현재 Space의 창과 최소화된 창이 최근에 쓴 순서로 나타납니다. Tab으로 다음, ⇧Tab으로 이전 창을 고르고, ←/→로도 옮길 수 있습니다. 트리거 키를 놓으면 선택한 창으로 전환하고, Esc는 취소합니다. 창을 클릭해도 전환됩니다. alt-tab-macos를 참고했습니다.")
+                Text("트리거 키를 누른 채 Tab을 누르면 현재 Space의 창과 최소화된 창이 최근에 쓴 순서로 나타납니다. Tab으로 다음, ⇧Tab으로 이전 창을 고르고, ←/→/↑/↓로도 옮길 수 있습니다. 트리거 키를 놓으면 선택한 창으로 전환하고, Esc는 취소합니다. alt-tab-macos를 참고했습니다.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section {
+                Picker("마우스", selection: $module.mouseMode) {
+                    ForEach(SwitcherMouseMode.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+            } header: {
+                Text("마우스")
+            } footer: {
+                Text("창을 클릭하면 바로 전환합니다. 호버로 선택을 고르면 마우스를 올린 창이 선택되고, 트리거 키를 놓으면 그 창으로 전환합니다. 선택했거나 마우스를 올린 창의 오른쪽 위 전원 버튼을 누르면 그 창을 닫습니다.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {
