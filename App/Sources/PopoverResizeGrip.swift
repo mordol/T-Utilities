@@ -12,8 +12,8 @@ struct PopoverResizeGrip: NSViewRepresentable {
     func makeNSView(context: Context) -> GripView {
         let view = GripView()
         view.onDrag = { start, mouse in
-            width = (start.width + 2 * (mouse.x - start.mouse.x)).clamped(to: PopoverSize.widthRange)
-            listHeight = min(start.listHeight + (start.mouse.y - mouse.y), start.maxListHeight)
+            width = (start.width + 2 * Double(mouse.x - start.mouse.x)).clamped(to: PopoverSize.widthRange)
+            listHeight = min(start.listHeight + Double(start.mouse.y - mouse.y), start.maxListHeight)
                 .clamped(to: PopoverSize.listHeightRange)
         }
         view.current = { (width, listHeight) }
