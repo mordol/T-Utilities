@@ -295,20 +295,10 @@ private struct MouseSettingsView: View {
 
             Section {
                 Toggle("포인터 설정 적용", isOn: $module.pointerEnabled)
-                LabeledContent("속도") {
-                    HStack {
-                        Slider(value: $module.speed, in: 0...1)
-                        Text(module.speed, format: .number.precision(.fractionLength(2))).monospacedDigit().frame(width: 36)
-                    }
-                }
-                .disabled(!module.pointerEnabled)
-                LabeledContent("가속") {
-                    HStack {
-                        Slider(value: $module.acceleration, in: 0...3)
-                        Text(module.acceleration, format: .number.precision(.fractionLength(2))).monospacedDigit().frame(width: 36)
-                    }
-                }
-                .disabled(!module.pointerEnabled)
+                PointerValueRow(title: "속도", value: $module.speed, range: 0...1)
+                    .disabled(!module.pointerEnabled)
+                PointerValueRow(title: "가속", value: $module.acceleration, range: 0...3)
+                    .disabled(!module.pointerEnabled)
                 if module.pointerEnabled {
                     PointerDevicesRow(devices: module.pointerDevices)
                 }
@@ -347,6 +337,30 @@ private struct MouseSettingsView: View {
 
         }
         .formStyle(.grouped)
+    }
+}
+
+/// Slider for coarse moves plus a number field for fine values (#24); typed values are clamped to the range.
+private struct PointerValueRow: View {
+    let title: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+
+    var body: some View {
+        LabeledContent(title) {
+            HStack {
+                Slider(value: $value, in: range)
+                TextField(title, value: clamped, format: .number.precision(.fractionLength(2...3)))
+                    .labelsHidden()
+                    .monospacedDigit()
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 56)
+            }
+        }
+    }
+
+    private var clamped: Binding<Double> {
+        Binding(get: { value }, set: { value = $0.clamped(range.lowerBound, range.upperBound) })
     }
 }
 
