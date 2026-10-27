@@ -1,4 +1,5 @@
 import AppKit
+import TUCore
 import WebKit
 
 /// Borderless floating panel that can take keyboard focus and handles ESC / ⌘1 / ⌘2 itself,
@@ -37,10 +38,11 @@ final class DictionaryPanelController: NSObject, WKUIDelegate {
     private static let defaultSize = NSSize(width: 480, height: 700)
     private static let resizeGrabMargin: CGFloat = 8
     private static let minSize = NSSize(width: 360, height: 400)
-    private static let widthKey = "dictionary.panelWidth"
-    private static let heightKey = "dictionary.panelHeight"
-    private static let centerOffsetKey = "dictionary.panelCenterOffset"
-    private static let topGapKey = "dictionary.panelTopGap"
+    /// Settings names, stored as `module.dictionary.<name>`.
+    static let widthKey = "panelWidth"
+    static let heightKey = "panelHeight"
+    static let centerOffsetKey = "panelCenterOffset"
+    static let topGapKey = "panelTopGap"
     private static let defaultTopGap: CGFloat = 8
 
     private var panel: DictionaryPanel?
@@ -48,10 +50,16 @@ final class DictionaryPanelController: NSObject, WKUIDelegate {
     private var resignObserver: NSObjectProtocol?
     private var resizeObserver: NSObjectProtocol?
 
+    private let settings: ModuleSettings
     private let currentSite: () -> DictionarySite
     private let selectSite: (DictionarySite) -> Void
 
-    init(currentSite: @escaping () -> DictionarySite, selectSite: @escaping (DictionarySite) -> Void) {
+    init(
+        settings: ModuleSettings,
+        currentSite: @escaping () -> DictionarySite,
+        selectSite: @escaping (DictionarySite) -> Void
+    ) {
+        self.settings = settings
         self.currentSite = currentSite
         self.selectSite = selectSite
     }
@@ -65,7 +73,7 @@ final class DictionaryPanelController: NSObject, WKUIDelegate {
     func show() {
         guard panel == nil else { return }
         let area = Self.screenUnderMouse()?.visibleFrame ?? .zero
-        let frame = Self.savedFrame(in: area)
+        let frame = savedFrame(in: area)
         let webView = WKWebView(frame: NSRect(origin: .zero, size: frame.size), configuration: WKWebViewConfiguration())
         webView.uiDelegate = self
         webView.load(URLRequest(url: currentSite().url))
@@ -108,10 +116,10 @@ final class DictionaryPanelController: NSObject, WKUIDelegate {
 
         resizeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didEndLiveResizeNotification, object: panel, queue: .main
-        ) { [weak panel] _ in
+        ) { [weak self, weak panel] _ in
             MainActor.assumeIsolated {
-                guard let panel else { return }
-                Self.saveFrame(panel.frame, in: panel.screen?.visibleFrame ?? panel.frame)
+                guard let self, let panel else { return }
+                self.saveFrame(panel.frame, in: panel.screen?.visibleFrame ?? panel.frame)
                 // The edge grab took key away; take it back so Esc and the outside-click close keep working.
                 panel.makeKey()
             }
@@ -148,22 +156,21 @@ final class DictionaryPanelController: NSObject, WKUIDelegate {
 
     /// Resizing from the left/top edge moves the panel too, so the place is kept relative to the screen
     /// (offset from its center, gap below the menu bar) and reapplied on whichever screen the mouse is on.
-    private static func saveFrame(_ frame: NSRect, in area: NSRect) {
-        let defaults = UserDefaults.standard
-        defaults.set(frame.width, forKey: widthKey)
-        defaults.set(frame.height, forKey: heightKey)
-        defaults.set(frame.midX - area.midX, forKey: centerOffsetKey)
-        defaults.set(area.maxY - frame.maxY, forKey: topGapKey)
+    private func saveFrame(_ frame: NSRect, in area: NSRect) {
+        settings.set(Double(frame.width), for: Self.widthKey)
+        settings.set(Double(frame.height), for: Self.heightKey)
+        settings.set(Double(frame.midX - area.midX), for: Self.centerOffsetKey)
+        settings.set(Double(area.maxY - frame.maxY), for: Self.topGapKey)
     }
 
     /// The last size and place, or the default (centered just below the menu bar).
-    private static func savedFrame(in area: NSRect) -> NSRect {
-        let defaults = UserDefaults.standard
-        let width = defaults.double(forKey: widthKey)
-        let height = defaults.double(forKey: heightKey)
-        let size = width > 0 && height > 0 ? NSSize(width: width, height: height) : defaultSize
-        let topGap = defaults.object(forKey: topGapKey) as? Double ?? defaultTopGap
-        return frame(size: size, centerOffset: defaults.double(forKey: centerOffsetKey), topGap: topGap, in: area)
+    private func savedFrame(in area: NSRect) -> NSRect {
+        let width: Double = settings.value(Self.widthKey, default: 0)
+        let height: Double = settings.value(Self.heightKey, default: 0)
+        let size = width > 0 && height > 0 ? NSSize(width: width, height: height) : Self.defaultSize
+        let topGap: Double = settings.value(Self.topGapKey, default: Self.defaultTopGap)
+        let centerOffset: Double = settings.value(Self.centerOffsetKey, default: 0)
+        return Self.frame(size: size, centerOffset: centerOffset, topGap: topGap, in: area)
     }
 
     /// Places `size` relative to `area`, then keeps it inside: shrinks to fit (not below `minSize`) and slides back in.

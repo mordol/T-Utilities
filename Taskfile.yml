@@ -93,14 +93,23 @@ tasks:
       - task: release-build
       - open {{.RELEASE_APP}}
 
-  test:
-    desc: Run the tests of every package (task test -- ModClipboard to run one)
+  check:
+    desc: Check the module rules (Docs/MODULES.md)
     cmds:
+      - Scripts/check-modules.sh
+
+  test:
+    desc: Check the module rules, then run the tests of every package (task test -- ModClipboard to run one)
+    cmds:
+      - Scripts/check-modules.sh
       - |
         if [ -n "{{.CLI_ARGS}}" ]; then
           swift test --package-path Packages/{{.CLI_ARGS}}
         else
-          for p in Packages/*/; do echo "== $p"; swift test --package-path "$p" || exit 1; done
+          for p in Packages/*/; do
+            [ -d "$p/Tests" ] || continue
+            echo "== $p"; swift test --package-path "$p" || exit 1
+          done
         fi
 
   measure:

@@ -1,4 +1,5 @@
 import AppKit
+import TUCore
 
 /// Session event tap behind the switcher. Only trigger+Tab and, while the switcher is open, ←/→/Esc/Tab are
 /// swallowed; every other event passes through untouched. The UI and Accessibility work runs after the callback
@@ -18,85 +19,24 @@ final class SwitcherTapController {
     }
 
     private var machine = SwitcherKeyMachine()
-    private var tap: CFMachPort?
-    private var source: CFRunLoopSource?
-    private var supervisor: Task<Void, Never>?
-
-    /// How long keystrokes can stall after Accessibility is lost while the tap is active.
-    static let tapCheckInterval: Duration = .seconds(3)
-
-    private static let mask: CGEventMask = [CGEventType.keyDown, .flagsChanged].reduce(0) { $0 | (1 << $1.rawValue) }
-
-    /// Installs the tap when possible and removes it as soon as event access is lost. An active tap whose app
-    /// loses Accessibility (revoked, or the running bundle replaced by an update) stalls every keystroke
-    /// system-wide, and `AXIsProcessTrusted` can report a stale grant — hence the real tap probe (same as the
-    /// modifier-drag tap in the Windows module).
-    func start() {
-        guard supervisor == nil else { return }
-        machine.trigger = trigger
-        install()
-        supervisor = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: Self.tapCheckInterval)
-                guard let self, !Task.isCancelled else { return }
-                if tap != nil {
-                    if await !Self.canCreateEventTap() { uninstall() }
-                } else {
-                    install()
-                }
-            }
+    private lazy var tap: SupervisedEventTap = {
+        let tap = SupervisedEventTap(types: [.keyDown, .flagsChanged], probeType: .keyDown) { [weak self] type, event in
+            self?.handle(type, event) ?? false
         }
+        tap.onUninstall = { [weak self] in self?.cancelActiveSession() }
+        // Events were lost, so the modifier release may have been too.
+        tap.onReenable = { [weak self] in self?.cancelActiveSession() }
+        return tap
+    }()
+
+    /// Installs the tap when possible and removes it as soon as event access is lost (see `SupervisedEventTap`).
+    func start() {
+        machine.trigger = trigger
+        tap.start()
     }
 
     func stop() {
-        supervisor?.cancel()
-        supervisor = nil
-        uninstall()
-    }
-
-    private func install() {
-        guard tap == nil else { return }
-        let callback: CGEventTapCallBack = { _, type, event, userInfo in
-            guard let userInfo else { return Unmanaged.passUnretained(event) }
-            let controller = Unmanaged<SwitcherTapController>.fromOpaque(userInfo).takeUnretainedValue()
-            // The tap's source lives on the main run loop.
-            let swallow = MainActor.assumeIsolated { controller.handle(type, event) }
-            return swallow ? nil : Unmanaged.passUnretained(event)
-        }
-        guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
-            eventsOfInterest: Self.mask, callback: callback,
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
-        ) else { return }
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEvent.tapEnable(tap: tap, enable: true)
-        self.tap = tap
-        self.source = source
-    }
-
-    private func uninstall() {
-        if let tap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-            CFMachPortInvalidate(tap)
-        }
-        if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
-        tap = nil
-        source = nil
-        cancelActiveSession()
-    }
-
-    /// Creates and immediately discards a tap off the main thread; fails once Accessibility is gone.
-    private nonisolated static func canCreateEventTap() async -> Bool {
-        await Task.detached(priority: .utility) {
-            guard let probe = CGEvent.tapCreate(
-                tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
-                eventsOfInterest: CGEventMask(1) << CGEventType.keyDown.rawValue,
-                callback: { _, _, event, _ in Unmanaged.passUnretained(event) }, userInfo: nil
-            ) else { return false }
-            CFMachPortInvalidate(probe)
-            return true
-        }.value
+        tap.stop()
     }
 
     /// Returns whether the event is swallowed.
@@ -107,11 +47,6 @@ final class SwitcherTapController {
             input = .keyDown(SwitcherKey(keyCode: event.getIntegerValueField(.keyboardEventKeycode)))
         case .flagsChanged:
             input = .flagsChanged
-        case .tapDisabledByTimeout, .tapDisabledByUserInput:
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
-            // Events were lost, so the modifier release may have been too.
-            cancelActiveSession()
-            return false
         default:
             return false
         }

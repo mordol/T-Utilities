@@ -24,6 +24,10 @@ public final class AwakeModule: TUModule {
     @ObservationIgnored private let assertion = SleepAssertion()
     @ObservationIgnored private let lidGuard = LidSleepGuard()
     @ObservationIgnored private var loop: Task<Void, Never>?
+    /// Ticks also come from settings and the popover (`setMode`), which can outlive a disable, and a tick
+    /// suspends during agent detection; without this check a tick finishing after `stop()` re-acquires the
+    /// sleep assertion and lid-closed prevention.
+    @ObservationIgnored private var isStarted = false
 
     private(set) var mode: AwakeMode
     /// End of the current manual session; nil = unlimited.
@@ -82,6 +86,7 @@ public final class AwakeModule: TUModule {
     public func start() async throws {
         // A previous run may have died while lid-closed sleep was disabled (and its guard with it).
         ClamshellMarker().recoverIfNeeded()
+        isStarted = true
         loop = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.tick()
@@ -91,6 +96,7 @@ public final class AwakeModule: TUModule {
     }
 
     public func stop() async {
+        isStarted = false
         loop?.cancel()
         loop = nil
         assertion.set(false, reason: "")
@@ -117,6 +123,7 @@ public final class AwakeModule: TUModule {
     }
 
     private func tick() async {
+        guard isStarted else { return }
         now = Date()
         if mode == .auto {
             let detector = AgentDetector(
@@ -125,6 +132,7 @@ public final class AwakeModule: TUModule {
                 countsPermissionWait: countsPermissionWait
             )
             let detected = await Task.detached(priority: .utility) { detector.detect() }.value
+            guard isStarted else { return }
             activeAgents = detected
             if !detected.isEmpty { lastAgentActivity = now }
         } else {

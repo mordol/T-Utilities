@@ -161,6 +161,7 @@ enum SystemTopEdgeFill {
     static var isEnabled: Bool {
         get { (CFPreferencesCopyAppValue(key as CFString, domain as CFString) as? Bool) ?? true }
         set {
+            // module-rules: allow proxies a macOS setting the user toggles explicitly in this pane
             CFPreferencesSetAppValue(key as CFString, newValue as CFBoolean, domain as CFString)
             CFPreferencesAppSynchronize(domain as CFString)
         }

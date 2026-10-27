@@ -1,4 +1,5 @@
 import AppKit
+import TUCore
 
 // Idea from easy-move-resize (MIT, © Daniel Marcotte): hold a modifier and drag anywhere in a window to move it,
 // right-drag to resize it. https://github.com/dmarcotte/easy-move-resize
@@ -20,98 +21,33 @@ final class ModifierDragController {
     /// Armed left double-click on a window; called on the main actor after the tap returns.
     var onDoubleClick: ((AXWindow) -> Void)?
 
-    private var tap: CFMachPort?
-    private var source: CFRunLoopSource?
     private var session: Session?
     /// The double-click's own drag/up are swallowed too, so the app never sees half a click.
     private var swallowsUntilUp = false
-    private var supervisor: Task<Void, Never>?
-
-    /// How long clicks can stall after Accessibility is lost while the tap is active.
-    static let tapCheckInterval: Duration = .seconds(3)
-
-    private static let mask: CGEventMask = [
-        CGEventType.leftMouseDown, .leftMouseDragged, .leftMouseUp,
-        .rightMouseDown, .rightMouseDragged, .rightMouseUp,
-    ].reduce(0) { $0 | (1 << $1.rawValue) }
-
-    /// Installs the tap when possible and removes it as soon as event access is lost. An active tap whose app
-    /// loses Accessibility (revoked, or the running bundle replaced by an update) stalls every click system-wide,
-    /// and `AXIsProcessTrusted` can report a stale grant — hence the real tap probe (same as the Mouse module).
-    func start() {
-        guard supervisor == nil else { return }
-        install()
-        supervisor = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: Self.tapCheckInterval)
-                guard let self, !Task.isCancelled else { return }
-                if tap != nil {
-                    if await !Self.canCreateEventTap() { uninstall() }
-                } else {
-                    install()
-                }
-            }
+    private lazy var tap: SupervisedEventTap = {
+        let tap = SupervisedEventTap(
+            types: [.leftMouseDown, .leftMouseDragged, .leftMouseUp, .rightMouseDown, .rightMouseDragged, .rightMouseUp],
+            probeType: .leftMouseDown
+        ) { [weak self] type, event in self?.handle(type, event) ?? false }
+        tap.onUninstall = { [weak self] in
+            self?.session?.writer.finish()
+            self?.session = nil
         }
+        return tap
+    }()
+
+    /// Installs the tap when possible and removes it as soon as event access is lost (see `SupervisedEventTap`).
+    func start() {
+        tap.start()
     }
 
     func stop() {
-        supervisor?.cancel()
-        supervisor = nil
-        uninstall()
-    }
-
-    private func install() {
-        guard tap == nil else { return }
-        let callback: CGEventTapCallBack = { _, type, event, userInfo in
-            guard let userInfo else { return Unmanaged.passUnretained(event) }
-            let controller = Unmanaged<ModifierDragController>.fromOpaque(userInfo).takeUnretainedValue()
-            // The tap's source lives on the main run loop.
-            let swallow = MainActor.assumeIsolated { controller.handle(type, event) }
-            return swallow ? nil : Unmanaged.passUnretained(event)
-        }
-        guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
-            eventsOfInterest: Self.mask, callback: callback,
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
-        ) else { return }
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEvent.tapEnable(tap: tap, enable: true)
-        self.tap = tap
-        self.source = source
-    }
-
-    private func uninstall() {
-        if let tap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-            CFMachPortInvalidate(tap)
-        }
-        if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
-        tap = nil
-        source = nil
-        session?.writer.finish()
-        session = nil
-    }
-
-    /// Creates and immediately discards a tap off the main thread; fails once Accessibility is gone.
-    private nonisolated static func canCreateEventTap() async -> Bool {
-        await Task.detached(priority: .utility) {
-            guard let probe = CGEvent.tapCreate(
-                tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
-                eventsOfInterest: CGEventMask(1) << CGEventType.leftMouseDown.rawValue,
-                callback: { _, _, event, _ in Unmanaged.passUnretained(event) }, userInfo: nil
-            ) else { return false }
-            CFMachPortInvalidate(probe)
-            return true
-        }.value
+        tap.stop()
     }
 
     /// Returns whether the event is swallowed.
     private func handle(_ type: CGEventType, _ event: CGEvent) -> Bool {
         switch type {
-        case .tapDisabledByTimeout, .tapDisabledByUserInput:
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
-            return false
         case .leftMouseDown, .rightMouseDown:
             session?.writer.finish()
             session = nil

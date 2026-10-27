@@ -40,7 +40,13 @@ public final class DictionaryModule: TUModule {
     }
 
     public func start() async throws {
+        // v0.1.6–v0.1.9 saved the panel frame outside the module namespace.
+        for name in [DictionaryPanelController.widthKey, DictionaryPanelController.heightKey,
+                     DictionaryPanelController.centerOffsetKey, DictionaryPanelController.topGapKey] {
+            settings.migrateLegacyKey("dictionary.\(name)", to: name)
+        }
         panelController = DictionaryPanelController(
+            settings: settings,
             currentSite: { [weak self] in self?.site ?? .naver },
             selectSite: { [weak self] in self?.site = $0 }
         )

@@ -21,6 +21,13 @@ public struct ModuleSettings {
     public func set(_ value: Any?, for name: String) {
         defaults.set(value, forKey: key(name))
     }
+
+    /// Moves a value saved by an older version under a key outside the namespace, once.
+    public func migrateLegacyKey(_ legacyKey: String, to name: String) {
+        guard let value = defaults.object(forKey: legacyKey) else { return }
+        if defaults.object(forKey: key(name)) == nil { defaults.set(value, forKey: key(name)) }
+        defaults.removeObject(forKey: legacyKey)
+    }
 }
 
 public struct ModuleLog: Sendable {

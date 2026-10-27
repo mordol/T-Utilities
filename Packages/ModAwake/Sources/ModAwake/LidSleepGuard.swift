@@ -9,6 +9,7 @@ struct ClamshellMarker {
 
     private let defaults: UserDefaults
 
+    // module-rules: allow crash-recovery marker read at launch before any module state; key predates namespacing
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
     }

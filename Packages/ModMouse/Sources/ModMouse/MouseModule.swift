@@ -22,8 +22,6 @@ public final class MouseModule: TUModule {
 
     /// HID++ battery poll; devices also push battery events in between.
     static let batteryPollInterval: Duration = .seconds(300)
-    /// How long input can stall after Accessibility is revoked while the tap is active.
-    static let tapCheckInterval: Duration = .seconds(3)
     /// Defaults carried over from the user's LinearMouse config.
     static let defaultSpeed = 0.08
     static let defaultAcceleration = 0.9
@@ -33,7 +31,6 @@ public final class MouseModule: TUModule {
     @ObservationIgnored private let eventTap = MouseEventTap()
     @ObservationIgnored private let battery = LogitechBattery()
     @ObservationIgnored private var batteryPoller: Task<Void, Never>?
-    @ObservationIgnored private var tapSupervisor: Task<Void, Never>?
     @ObservationIgnored private var reapplyTask: Task<Void, Never>?
     @ObservationIgnored private var isRefreshingBattery = false
     @ObservationIgnored private var isStarted = false
@@ -101,11 +98,9 @@ public final class MouseModule: TUModule {
 
     public func stop() async {
         isStarted = false
-        tapSupervisor?.cancel()
         reapplyTask?.cancel()
-        tapSupervisor = nil
         reapplyTask = nil
-        eventTap.uninstall()
+        eventTap.stop()
         tapInstalled = false
         pointer.stopWatching()
         pointer.restore()
@@ -145,39 +140,9 @@ public final class MouseModule: TUModule {
         eventTap.scroll = ScrollOptions(reverse: reverseScroll, lines: scrollLines)
     }
 
-    /// Installs the tap when possible and removes it as soon as event access is lost.
-    /// An active tap whose app loses Accessibility (revoked, or the app bundle replaced/deleted) stalls
-    /// all scroll/button input system-wide, so this must not wait for the user. `AXIsProcessTrusted` can
-    /// report a stale grant, hence the real tap probe (same approach as LinearMouse's watchdog).
     private func installEventTap() {
-        tapInstalled = eventTap.install()
-        tapSupervisor = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: Self.tapCheckInterval)
-                guard let self, !Task.isCancelled else { return }
-                if tapInstalled {
-                    if await !Self.canCreateEventTap() {
-                        eventTap.uninstall()
-                        tapInstalled = false
-                    }
-                } else {
-                    tapInstalled = eventTap.install()
-                }
-            }
-        }
-    }
-
-    /// Creates and immediately discards a tap off the main thread; fails once Accessibility is gone.
-    private nonisolated static func canCreateEventTap() async -> Bool {
-        await Task.detached(priority: .utility) {
-            guard let probe = CGEvent.tapCreate(
-                tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
-                eventsOfInterest: CGEventMask(1) << CGEventType.scrollWheel.rawValue,
-                callback: { _, _, event, _ in Unmanaged.passUnretained(event) }, userInfo: nil
-            ) else { return false }
-            CFMachPortInvalidate(probe)
-            return true
-        }.value
+        eventTap.onInstalledChange = { [weak self] in self?.tapInstalled = $0 }
+        eventTap.start()
     }
 
     // MARK: - Battery

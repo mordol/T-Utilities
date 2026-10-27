@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import TUCore
 
 // Button actions and scroll transforms adapted from LinearMouse (MIT, © LinearMouse)
 // https://github.com/linearmouse/linearmouse — DockKit notifications, reverse and linear scrolling.
@@ -68,51 +69,30 @@ final class MouseEventTap {
     var buttonActions: [Int: MouseAction] = [:]
     var scroll = ScrollOptions(reverse: false, lines: 0)
 
-    private var port: CFMachPort?
-    private var source: CFRunLoopSource?
-
-    var isInstalled: Bool { port != nil }
-
-    /// Fails without Accessibility permission.
-    func install() -> Bool {
-        guard port == nil else { return true }
-        let types: [CGEventType] = [.otherMouseDown, .otherMouseUp, .otherMouseDragged, .scrollWheel]
-        let mask = types.reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) }
-        guard let port = CGEvent.tapCreate(
-            tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
-            eventsOfInterest: mask, callback: Self.callback,
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
-        ) else { return false }
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, port, 0)
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        self.port = port
-        self.source = source
-        return true
+    private lazy var tap = SupervisedEventTap(
+        types: [.otherMouseDown, .otherMouseUp, .otherMouseDragged, .scrollWheel], probeType: .scrollWheel
+    ) { [weak self] type, event in
+        !(self?.handle(type, event) ?? true)
     }
 
-    func uninstall() {
-        guard let port else { return }
-        CGEvent.tapEnable(tap: port, enable: false)
-        if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
-        CFMachPortInvalidate(port)
-        self.port = nil
-        source = nil
+    var onInstalledChange: (@MainActor (Bool) -> Void)? {
+        get { tap.onInstalledChange }
+        set { tap.onInstalledChange = newValue }
     }
 
-    private static let callback: CGEventTapCallBack = { _, type, event, userInfo in
-        guard let userInfo else { return Unmanaged.passUnretained(event) }
-        let tap = Unmanaged<MouseEventTap>.fromOpaque(userInfo).takeUnretainedValue()
-        // The tap's run loop source is on the main run loop, so this callback runs on the main thread.
-        nonisolated(unsafe) let event = event
-        let keep = MainActor.assumeIsolated { tap.handle(type, event) }
-        return keep ? Unmanaged.passUnretained(event) : nil
+    /// Installs the tap when possible (fails without Accessibility) and removes it as soon as event access is
+    /// lost (see `SupervisedEventTap`).
+    func start() {
+        tap.start()
+    }
+
+    func stop() {
+        tap.stop()
     }
 
     /// Mutates `event` in place; returns false to swallow it.
     private func handle(_ type: CGEventType, _ event: CGEvent) -> Bool {
         switch type {
-        case .tapDisabledByTimeout, .tapDisabledByUserInput:
-            if let port { CGEvent.tapEnable(tap: port, enable: true) }
         case .otherMouseDown, .otherMouseUp, .otherMouseDragged:
             let button = Int(event.getIntegerValueField(.mouseEventButtonNumber))
             guard let action = buttonActions[button], action != .passThrough else { break }

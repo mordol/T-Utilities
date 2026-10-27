@@ -20,6 +20,15 @@ NOTES=Docs/releases/v$VERSION.md
 [[ -z $DRY && -n $(git status --porcelain) ]] && { echo "working tree is not clean"; exit 1; }
 [[ -n $DRY || ( -f $CASK && -z $(git -C "$TAP_DIR" status --porcelain) ) ]] || { echo "tap clone missing or dirty: $TAP_DIR"; exit 1; }
 
+# Module rules and every package's tests (incl. the module contract tests) gate each release.
+Scripts/check-modules.sh
+mkdir -p build
+for p in Packages/*/; do
+  [[ -d $p/Tests ]] || continue
+  swift test --package-path "$p" > build/test-$(basename "$p").log 2>&1 || { echo "tests failed: $p (build/test-$(basename "$p").log)"; exit 1; }
+done
+echo "module rules and tests passed"
+
 BUILD=$(( $(sed -n 's/.*CFBundleVersion: "\([0-9]*\)".*/\1/p' project.yml) + 1 ))
 sed -i '' -e "s/CFBundleShortVersionString: \".*\"/CFBundleShortVersionString: \"$VERSION\"/" \
           -e "s/CFBundleVersion: \".*\"/CFBundleVersion: \"$BUILD\"/" project.yml

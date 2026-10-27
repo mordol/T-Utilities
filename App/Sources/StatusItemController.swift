@@ -118,7 +118,7 @@ final class StatusItemController: NSObject {
     }
 
     /// Closes the popover on a click outside it. `.transient` alone stops doing so after a module's
-    /// `NSMenu.popUp` (e.g. Stats) has run inside the popover, leaving only the status item to close it.
+    /// `NSMenu.popUp` (e.g. Cable) has run inside the popover, leaving only the status item to close it.
     private func installOutsideClickMonitors() {
         let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown]
         let closeIfOutside = { [weak self] in

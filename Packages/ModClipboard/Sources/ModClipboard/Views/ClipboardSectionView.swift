@@ -12,6 +12,7 @@ struct ClipboardSectionView: View {
 
     @FocusState private var searchFocused: Bool
 
+    // module-rules: allow shell-owned popover geometry (PopoverSize), read-only here
     @AppStorage(PopoverSize.listHeightKey) private var listHeight = Double(PopoverSize.defaultListHeight)
 
     var body: some View {
