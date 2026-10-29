@@ -126,10 +126,16 @@ public final class MouseModule: TUModule {
     private func devicesChanged() {
         reapplyTask?.cancel()
         reapplyTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(1))
-            guard !Task.isCancelled, let self else { return }
-            applyPointer()
-            await refreshBattery()
+            // A re-enumerated mouse needs a fresh event-system client, and its service may take a moment to
+            // accept properties; retry once if a device still rejects the values.
+            for delay in [1, 2] {
+                try? await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled, let self, isStarted else { return }
+                pointer.resetClient()
+                applyPointer()
+                if pointerDevices.allSatisfy(\.applied) { break }
+            }
+            await self?.refreshBattery()
         }
     }
 

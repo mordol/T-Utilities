@@ -38,12 +38,16 @@ final class PointerTuner {
     static let defaultResolution = 400.0
     private nonisolated static let speedRange = 1.0 / 1200 ... 1.0 / 40
 
-    private let client: IOHIDEventSystemClient
+    /// Created on first use. It is never scheduled, so its service list goes stale when a mouse is re-enumerated
+    /// (receiver replugged): writes then go to the removed service and fail (#23 follow-up). `resetClient()`
+    /// drops it so the next apply sees the current devices.
+    private var client: IOHIDEventSystemClient?
     private var originals: [UInt64: Original] = [:]
     private var deviceWatcher: IOHIDManager?
 
-    init() {
-        client = Self.makeAdminClient() ?? IOHIDEventSystemClientCreateSimpleClient(kCFAllocatorDefault)
+    /// Call when mice were attached or re-enumerated.
+    func resetClient() {
+        client = nil
     }
 
     nonisolated static func resolution(forSpeed speed: Double) -> Double {
@@ -90,6 +94,7 @@ final class PointerTuner {
             }
         }
         originals.removeAll()
+        client = nil
     }
 
     /// Calls `onChange` (debounced by the caller) when mice are attached, e.g. receiver plugged in or wake from sleep.
@@ -127,6 +132,8 @@ final class PointerTuner {
     /// Mice and other pointers with the acceleration property each one uses. Matching only devices that report
     /// `HIDMouseAcceleration` silently skipped mice that report another type or none (#23).
     private func mouseServices() -> [(IOHIDServiceClient, String)] {
+        let client = client ?? Self.makeAdminClient() ?? IOHIDEventSystemClientCreateSimpleClient(kCFAllocatorDefault)
+        self.client = client
         let services = IOHIDEventSystemClientCopyServices(client) as? [IOHIDServiceClient] ?? []
         return services.compactMap { service in
             let page = UInt32(kHIDPage_GenericDesktop)
