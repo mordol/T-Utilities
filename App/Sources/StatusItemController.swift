@@ -13,6 +13,8 @@ final class StatusItemController: NSObject {
     private let popover = NSPopover()
     private var keyDownMonitor: Any?
     private var outsideClickMonitors: [Any] = []
+    /// App that was frontmost before the popover activated us; gets focus back when the popover closes.
+    private var previousApp: NSRunningApplication?
 
     init(registry: ModuleRegistry, updater: Updater, popoverControl: PopoverControl, openSettings: @escaping () -> Void) {
         self.registry = registry
@@ -84,6 +86,8 @@ final class StatusItemController: NSObject {
         for module in registry.activePopoverModules {
             module.popoverWillShow()
         }
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        previousApp = frontmost == .current ? nil : frontmost
         NSApp.activate()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
@@ -173,5 +177,17 @@ extension StatusItemController: NSPopoverDelegate {
         for module in registry.activePopoverModules {
             module.popoverDidClose()
         }
+        // Next turn, so a window opened from the popover (Settings, an alert) is already up.
+        let app = previousApp
+        previousApp = nil
+        DispatchQueue.main.async { Self.returnFocus(to: app) }
+    }
+
+    /// Showing the popover activated this window-less app; without this, focus stays here after it closes
+    /// and keystrokes go nowhere (#25). Leaves focus alone when the user already moved on to another app or
+    /// one of our own windows is open.
+    private static func returnFocus(to app: NSRunningApplication?) {
+        guard let app, !app.isTerminated, NSApp.isActive, NSApp.keyWindow == nil, NSApp.modalWindow == nil else { return }
+        app.activate()
     }
 }
