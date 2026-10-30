@@ -67,8 +67,8 @@ targets:
       path: App/Resources/Info.plist
       properties:
         CFBundleDisplayName: T-Utilities
-        CFBundleShortVersionString: "0.1.11"
-        CFBundleVersion: "12"
+        CFBundleShortVersionString: "0.1.12"
+        CFBundleVersion: "13"
         LSUIElement: true
         LSMinimumSystemVersion: "26.0"
         NSHumanReadableCopyright: "© 2026 Taegyu"
