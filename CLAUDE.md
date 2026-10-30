@@ -10,7 +10,7 @@ Read [Docs/MODULES.md](Docs/MODULES.md) before adding or changing a module. In s
 
 ## Commands
 
-- `task build` / `task run` — Debug build (quits the running app first). Rerun `xcodegen generate` (`task generate`) after adding files or packages.
+- `task build` / `task run` — Debug build (quits the running app first — this also drops the installed app's Awake sleep prevention; ask before running it). Rerun `xcodegen generate` (`task generate`) after adding files or packages.
 - `task check` — module rules. `task test` — rules + all package tests (`task test -- ModClipboard` for one).
 - `Scripts/release.sh X.Y.Z` — needs `Docs/releases/vX.Y.Z.md` (user-facing notes), a clean tree and a clean `../homebrew-tap` clone.
 
