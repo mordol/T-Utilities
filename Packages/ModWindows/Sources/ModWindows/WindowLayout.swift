@@ -15,6 +15,11 @@ enum WindowLayout {
             && abs(a.width - b.width) <= tolerance && abs(a.height - b.height) <= tolerance
     }
 
+    /// Undo of Fill Height (AX coordinates): the original top and height, the current left and width.
+    static func restoredHeight(_ current: CGRect, original: CGRect) -> CGRect {
+        CGRect(x: current.minX, y: original.minY, width: current.width, height: original.height)
+    }
+
     // MARK: Edge-resize snap (top/bottom edge dragged to the screen edge → full visible height)
 
     enum ResizeEdge: Sendable { case top, bottom }
@@ -67,7 +72,7 @@ enum WindowLayout {
     }
 
     enum Action: Sendable {
-        case maximize, leftHalf, rightHalf, nextDisplay, previousDisplay
+        case maximize, leftHalf, rightHalf, fillHeight, nextDisplay, previousDisplay
     }
 
     /// Target frame for `window`, or nil when the action does not apply (e.g. single display).
@@ -78,6 +83,9 @@ enum WindowLayout {
         switch action {
         case .maximize:
             return current.visibleFrame
+        case .fillHeight:
+            let area = current.visibleFrame
+            return CGRect(x: window.minX, y: area.minY, width: window.width, height: area.height)
         case .leftHalf, .rightHalf:
             let area = current.visibleFrame
             let leftWidth = (area.width / 2).rounded(.down)

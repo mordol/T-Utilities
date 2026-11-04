@@ -44,6 +44,22 @@ struct WindowLayoutTests {
             == CGRect(x: 2792, y: -235, width: 1280, height: 1415))
     }
 
+    @Test func fillHeightKeepsLeftAndWidth() {
+        let window = CGRect(x: 100, y: 200, width: 600, height: 400)
+        #expect(WindowLayout.target(for: .fillHeight, window: window, screens: [laptop, external])
+            == CGRect(x: 100, y: 70, width: 600, height: 875))
+
+        let onExternal = CGRect(x: 2000, y: 0, width: 800, height: 600)
+        #expect(WindowLayout.target(for: .fillHeight, window: onExternal, screens: [laptop, external])
+            == CGRect(x: 2000, y: -235, width: 800, height: 1415))
+    }
+
+    @Test func restoredHeightKeepsSidewaysMoves() {
+        let original = CGRect(x: 100, y: 300, width: 600, height: 400)
+        let movedAfterFill = CGRect(x: 250, y: 25, width: 600, height: 875)
+        #expect(WindowLayout.restoredHeight(movedAfterFill, original: original) == CGRect(x: 250, y: 300, width: 600, height: 400))
+    }
+
     @Test func windowSpanningScreensBelongsToTheLargerShare() {
         let window = CGRect(x: 1300, y: 100, width: 800, height: 400) // mostly on external
         #expect(WindowLayout.screenContaining(window, in: [laptop, external]) == external)

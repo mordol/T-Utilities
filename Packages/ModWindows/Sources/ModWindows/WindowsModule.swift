@@ -6,12 +6,14 @@ import TUUI
 
 // Window actions adapted from Rectangle (MIT, © Ryan Hanson; based on Spectacle © Eric Czarny)
 // https://github.com/rxhanson/Rectangle — only Maximize, Left/Right Half and Next/Previous Display, with Rectangle's
-// default shortcuts.
+// default shortcuts. Fill Height (⌃⌥↑) and its restore (⌃⌥↓) were requested in #27.
 
 extension KeyboardShortcuts.Name {
     static let windowMaximize = Self("windows.maximize", initial: .init(.return, modifiers: [.control, .option]))
     static let windowLeftHalf = Self("windows.leftHalf", initial: .init(.leftArrow, modifiers: [.control, .option]))
     static let windowRightHalf = Self("windows.rightHalf", initial: .init(.rightArrow, modifiers: [.control, .option]))
+    static let windowFillHeight = Self("windows.fillHeight", initial: .init(.upArrow, modifiers: [.control, .option]))
+    static let windowRestoreHeight = Self("windows.restoreHeight", initial: .init(.downArrow, modifiers: [.control, .option]))
     static let windowNextDisplay = Self("windows.nextDisplay", initial: .init(.rightArrow, modifiers: [.control, .option, .command]))
     static let windowPreviousDisplay = Self("windows.previousDisplay", initial: .init(.leftArrow, modifiers: [.control, .option, .command]))
 }
@@ -27,14 +29,15 @@ public final class WindowsModule: TUModule {
         conflictingBundleIDs: ["com.knollsoft.Rectangle", "org.dmarcotte.Easy-Move-Resize"]
     )
 
-    /// A window maximized by us and where it was before, so pressing Maximize again restores it.
+    /// A window maximized (or height-filled) by us and where it was before, so it can be restored.
     private struct RestoreEntry {
         let window: AXUIElement
         let original: CGRect
-        let maximized: CGRect
+        let placed: CGRect
     }
 
     @ObservationIgnored private var restoreEntries: [RestoreEntry] = []
+    @ObservationIgnored private var heightRestoreEntries: [RestoreEntry] = []
     private static let maxRestoreEntries = 20
 
     @ObservationIgnored private let settings: ModuleSettings
@@ -92,6 +95,8 @@ public final class WindowsModule: TUModule {
             HotkeyDefinition(name: .windowMaximize, title: "최대화") { [weak self] in self?.perform(.maximize) },
             HotkeyDefinition(name: .windowLeftHalf, title: "왼쪽 절반") { [weak self] in self?.perform(.leftHalf) },
             HotkeyDefinition(name: .windowRightHalf, title: "오른쪽 절반") { [weak self] in self?.perform(.rightHalf) },
+            HotkeyDefinition(name: .windowFillHeight, title: "위아래 채우기") { [weak self] in self?.perform(.fillHeight) },
+            HotkeyDefinition(name: .windowRestoreHeight, title: "위아래 채우기 되돌리기") { [weak self] in self?.restoreHeight() },
             HotkeyDefinition(name: .windowNextDisplay, title: "다음 디스플레이") { [weak self] in self?.perform(.nextDisplay) },
             HotkeyDefinition(name: .windowPreviousDisplay, title: "이전 디스플레이") { [weak self] in self?.perform(.previousDisplay) },
         ]
@@ -118,7 +123,7 @@ public final class WindowsModule: TUModule {
         if action == .maximize, let index = restoreEntries.firstIndex(where: { CFEqual($0.window, window.element) }) {
             let entry = restoreEntries.remove(at: index)
             // Still exactly as we left it → toggle back. Moved/resized since → maximize again.
-            if WindowLayout.isSameFrame(entry.maximized, axFrame) {
+            if WindowLayout.isSameFrame(entry.placed, axFrame) {
                 window.setFrame(entry.original)
                 return
             }
@@ -141,8 +146,16 @@ public final class WindowsModule: TUModule {
         window.setFrame(WindowLayout.flipped(target, primaryScreenMaxY: primaryMaxY))
         defer {
             if action == .maximize, let placed = window.frame {
-                restoreEntries.append(RestoreEntry(window: window.element, original: axFrame, maximized: placed))
+                restoreEntries.append(RestoreEntry(window: window.element, original: axFrame, placed: placed))
                 restoreEntries = Array(restoreEntries.suffix(Self.maxRestoreEntries))
+            }
+            if action == .fillHeight, let placed = window.frame {
+                // Filling an already filled window again keeps the first original.
+                let previous = heightRestoreEntries.last { CFEqual($0.window, window.element) }
+                let original = previous.map { WindowLayout.isSameFrame($0.placed, axFrame) ? $0.original : axFrame } ?? axFrame
+                heightRestoreEntries.removeAll { CFEqual($0.window, window.element) }
+                heightRestoreEntries.append(RestoreEntry(window: window.element, original: original, placed: placed))
+                heightRestoreEntries = Array(heightRestoreEntries.suffix(Self.maxRestoreEntries))
             }
         }
 
@@ -154,6 +167,24 @@ public final class WindowsModule: TUModule {
         if fitted.origin != placedCocoa.origin {
             window.set(position: WindowLayout.flipped(fitted, primaryScreenMaxY: primaryMaxY).origin)
         }
+    }
+}
+
+extension WindowsModule {
+    /// ⌃⌥↓: undoes Fill Height on the frontmost window — back to its earlier top and height, keeping where it was
+    /// moved sideways since.
+    func restoreHeight() {
+        guard Permission.accessibility.isGranted else {
+            Permission.accessibility.request()
+            return
+        }
+        guard let window = AXWindow.frontmost(), let current = window.frame,
+              let index = heightRestoreEntries.lastIndex(where: { CFEqual($0.window, window.element) }) else {
+            NSSound.beep()
+            return
+        }
+        let entry = heightRestoreEntries.remove(at: index)
+        window.setFrame(WindowLayout.restoredHeight(current, original: entry.original))
     }
 }
 
@@ -197,6 +228,8 @@ private struct WindowsSettingsView: View {
                 LabeledContent("최대화", value: "⌃⌥↩")
                 LabeledContent("왼쪽 절반", value: "⌃⌥←")
                 LabeledContent("오른쪽 절반", value: "⌃⌥→")
+                LabeledContent("위아래 채우기", value: "⌃⌥↑")
+                LabeledContent("위아래 채우기 되돌리기", value: "⌃⌥↓")
                 LabeledContent("다음 디스플레이", value: "⌃⌥⌘→")
                 LabeledContent("이전 디스플레이", value: "⌃⌥⌘←")
             } header: {
