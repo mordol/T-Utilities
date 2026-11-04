@@ -26,6 +26,24 @@ struct WindowLayoutTests {
         #expect(WindowLayout.target(for: .maximize, window: onExternal, screens: [laptop, external]) == external.visibleFrame)
     }
 
+    @Test func halvesSplitTheVisibleFrameOfTheCurrentScreen() {
+        let window = CGRect(x: 100, y: 200, width: 600, height: 400)
+        #expect(WindowLayout.target(for: .leftHalf, window: window, screens: [laptop, external])
+            == CGRect(x: 0, y: 70, width: 756, height: 875))
+        #expect(WindowLayout.target(for: .rightHalf, window: window, screens: [laptop, external])
+            == CGRect(x: 756, y: 70, width: 756, height: 875))
+
+        // Odd widths: the halves still cover the whole screen without overlapping.
+        let odd = WindowLayout.Screen(frame: CGRect(x: 0, y: 0, width: 1001, height: 800), visibleFrame: CGRect(x: 0, y: 0, width: 1001, height: 775))
+        let left = WindowLayout.target(for: .leftHalf, window: window, screens: [odd])!
+        let right = WindowLayout.target(for: .rightHalf, window: window, screens: [odd])!
+        #expect(left.maxX == right.minX && left.width + right.width == 1001)
+
+        let onExternal = CGRect(x: 2000, y: 0, width: 800, height: 600)
+        #expect(WindowLayout.target(for: .rightHalf, window: onExternal, screens: [laptop, external])
+            == CGRect(x: 2792, y: -235, width: 1280, height: 1415))
+    }
+
     @Test func windowSpanningScreensBelongsToTheLargerShare() {
         let window = CGRect(x: 1300, y: 100, width: 800, height: 400) // mostly on external
         #expect(WindowLayout.screenContaining(window, in: [laptop, external]) == external)

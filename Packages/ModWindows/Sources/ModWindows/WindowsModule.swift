@@ -5,10 +5,13 @@ import TUCore
 import TUUI
 
 // Window actions adapted from Rectangle (MIT, © Ryan Hanson; based on Spectacle © Eric Czarny)
-// https://github.com/rxhanson/Rectangle — only Maximize and Next/Previous Display, with Rectangle's default shortcuts.
+// https://github.com/rxhanson/Rectangle — only Maximize, Left/Right Half and Next/Previous Display, with Rectangle's
+// default shortcuts.
 
 extension KeyboardShortcuts.Name {
     static let windowMaximize = Self("windows.maximize", initial: .init(.return, modifiers: [.control, .option]))
+    static let windowLeftHalf = Self("windows.leftHalf", initial: .init(.leftArrow, modifiers: [.control, .option]))
+    static let windowRightHalf = Self("windows.rightHalf", initial: .init(.rightArrow, modifiers: [.control, .option]))
     static let windowNextDisplay = Self("windows.nextDisplay", initial: .init(.rightArrow, modifiers: [.control, .option, .command]))
     static let windowPreviousDisplay = Self("windows.previousDisplay", initial: .init(.leftArrow, modifiers: [.control, .option, .command]))
 }
@@ -87,6 +90,8 @@ public final class WindowsModule: TUModule {
     public var hotkeys: [HotkeyDefinition] {
         [
             HotkeyDefinition(name: .windowMaximize, title: "최대화") { [weak self] in self?.perform(.maximize) },
+            HotkeyDefinition(name: .windowLeftHalf, title: "왼쪽 절반") { [weak self] in self?.perform(.leftHalf) },
+            HotkeyDefinition(name: .windowRightHalf, title: "오른쪽 절반") { [weak self] in self?.perform(.rightHalf) },
             HotkeyDefinition(name: .windowNextDisplay, title: "다음 디스플레이") { [weak self] in self?.perform(.nextDisplay) },
             HotkeyDefinition(name: .windowPreviousDisplay, title: "이전 디스플레이") { [weak self] in self?.perform(.previousDisplay) },
         ]
@@ -190,6 +195,8 @@ private struct WindowsSettingsView: View {
         Form {
             Section {
                 LabeledContent("최대화", value: "⌃⌥↩")
+                LabeledContent("왼쪽 절반", value: "⌃⌥←")
+                LabeledContent("오른쪽 절반", value: "⌃⌥→")
                 LabeledContent("다음 디스플레이", value: "⌃⌥⌘→")
                 LabeledContent("이전 디스플레이", value: "⌃⌥⌘←")
             } header: {

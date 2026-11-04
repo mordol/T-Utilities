@@ -67,7 +67,7 @@ enum WindowLayout {
     }
 
     enum Action: Sendable {
-        case maximize, nextDisplay, previousDisplay
+        case maximize, leftHalf, rightHalf, nextDisplay, previousDisplay
     }
 
     /// Target frame for `window`, or nil when the action does not apply (e.g. single display).
@@ -78,6 +78,12 @@ enum WindowLayout {
         switch action {
         case .maximize:
             return current.visibleFrame
+        case .leftHalf, .rightHalf:
+            let area = current.visibleFrame
+            let leftWidth = (area.width / 2).rounded(.down)
+            return action == .leftHalf
+                ? CGRect(x: area.minX, y: area.minY, width: leftWidth, height: area.height)
+                : CGRect(x: area.minX + leftWidth, y: area.minY, width: area.width - leftWidth, height: area.height)
         case .nextDisplay, .previousDisplay:
             guard ordered.count > 1, let index = ordered.firstIndex(of: current) else { return nil }
             let step = action == .nextDisplay ? 1 : ordered.count - 1
