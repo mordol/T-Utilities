@@ -3,8 +3,8 @@ import SwiftUI
 
 /// Maccy-style history row: leading type icon, thumbnail for images,
 /// two-line ellipsized preview, quick-slot badge (⌘1~⌘0) and a
-/// `MM-dd HH:mm:ss` timestamp. Hovering an image row swaps the timestamp for
-/// an OCR button; Shift+clicking runs OCR on image items.
+/// `MM-dd HH:mm:ss` timestamp. Hovering a row swaps the timestamp for a
+/// translate button (image rows: OCR + translate); Shift+clicking runs OCR on image items.
 struct HistoryRowView: View {
     let item: ClipboardItem
     let isSelected: Bool
@@ -12,6 +12,7 @@ struct HistoryRowView: View {
     var quickSlotLabel: String?
     var onCopy: () -> Void
     var onOCR: () -> Void
+    var onTranslate: () -> Void
 
     @State private var thumbnail: NSImage?
     @State private var isHovering = false
@@ -54,16 +55,13 @@ struct HistoryRowView: View {
                     )
             }
 
-            if item.kind == .image && isHovering {
-                Button {
-                    onOCR()
-                } label: {
-                    Image(systemName: "text.viewfinder")
-                        .font(.system(size: 12, weight: .medium))
+            if isHovering {
+                HStack(spacing: 10) {
+                    if item.kind == .image {
+                        rowButton("text.viewfinder", help: "Copy extracted text (OCR)", action: onOCR)
+                    }
+                    rowButton("translate", help: "번역", action: onTranslate)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                .help("Copy extracted text (OCR)")
             } else {
                 Text(Self.timestampFormatter.string(from: item.date))
                     .font(.caption2.monospacedDigit())
@@ -92,6 +90,16 @@ struct HistoryRowView: View {
             guard item.kind == .image, let fileName = item.imageFileName else { return }
             thumbnail = imageCache.thumbnail(for: fileName)
         }
+    }
+
+    private func rowButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 12, weight: .medium))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+        .help(help)
     }
 
     @ViewBuilder

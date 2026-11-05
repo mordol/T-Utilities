@@ -8,6 +8,7 @@ import TUCore
 struct ClipboardSectionView: View {
     @ObservedObject var store: ClipboardStore
     var autoPaste: Bool
+    var onTranslate: (ClipboardItem) -> Void
     var onClose: () -> Void
 
     @FocusState private var searchFocused: Bool
@@ -134,6 +135,9 @@ struct ClipboardSectionView: View {
                             },
                             onOCR: {
                                 store.performOCRCopy(for: item)
+                            },
+                            onTranslate: {
+                                onTranslate(item)
                             }
                         )
                         .id(item.id)
