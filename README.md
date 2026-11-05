@@ -7,17 +7,19 @@ Each module can be turned on/off and reordered in Settings; disabled modules are
 
 | Module | What it does | Based on |
 |---|---|---|
-| Clipboard | Clipboard history, search, quick slots (⌘1–0), OCR, Quick Look, optional paste-on-Return | [CopyNinja](https://github.com/dwyi84/CopyNinja) |
+| Clipboard | Clipboard history, search, quick slots (⌘1–0), OCR, Quick Look, optional paste-on-Return, plain-text paste (⌥⇧⌘V), resizable popover. **Translation**: hover an item (or ⌃⌥T for the latest one) to translate it in a speech bubble under the menu bar icon — images are OCR'd first; Korean ↔ English or other language pairs, custom guidelines; runs on the Claude / OpenAI / Gemini API (key in the Keychain) or a logged-in local CLI (Claude Code, Codex, Cursor) | [CopyNinja](https://github.com/dwyi84/CopyNinja) |
 | Awake | Keep the Mac awake manually or while AI coding agents (Claude, Codex, Cursor, Paseo) work — also with the lid closed | idea from [eclam](https://github.com/jadhvank/eclam) |
 | Clock | Second time zone next to the menu bar icon (`NY 00:33`) | — |
-| Windows | Maximize, next/previous display, hold ⌥ and drag anywhere to move (right-drag to resize) | [Rectangle](https://github.com/rxhanson/Rectangle), [easy-move-resize](https://github.com/dmarcotte/easy-move-resize) |
+| Windows | Maximize (⌃⌥↩), left/right half (⌃⌥← / →), fill height (⌃⌥↑, back with ⌃⌥↓), next/previous display (⌃⌥⌘→ / ←). Hold ⌥ and drag anywhere to move, right-drag to resize, double-click to maximize/restore. Drag a window's top or bottom edge to the screen edge to fill the height | [Rectangle](https://github.com/rxhanson/Rectangle), [easy-move-resize](https://github.com/dmarcotte/easy-move-resize) |
 | Cable | USB-C port, cable and charger diagnostics | [WhatCable](https://github.com/darrylmorley/whatcable) |
-| Mouse | Pointer speed/acceleration, side buttons → Mission Control / Show Desktop, wheel reverse/linear, Logitech battery (HID++) | [LinearMouse](https://github.com/linearmouse/linearmouse) |
-| Dictionary | Global hotkey (⌥⌘Space) opens a small Naver / Daum dictionary panel (⌘1 / ⌘2 to switch); off by default | idea from [allkdic](https://github.com/devxoul/allkdic) |
-| Stats | CPU and memory at a glance, top processes by CPU/memory. Measured only when the popover opens (no background polling), off by default | idea from [Stats](https://github.com/exelban/stats) |
-| Switcher | Windows-style window switcher: hold ⌥ (or ⌘, replacing the macOS app switcher) and press Tab to pick a window from a thumbnail grid, including minimized ones. Thumbnails are captured only when it opens; off by default | design reference only: [alt-tab-macos](https://github.com/lwouis/alt-tab-macos) (GPL-3.0, no code used) |
+| Mouse | Pointer speed/acceleration (slider or typed value, with the mice it applies to), side buttons → Mission Control / Show Desktop, wheel reverse/linear, Logitech battery (HID++) | [LinearMouse](https://github.com/linearmouse/linearmouse) |
+| Dictionary | Global hotkey (⌥⌘Space) opens a resizable Naver / Daum dictionary panel (⌘1 / ⌘2 to switch) that remembers its size and place; off by default | idea from [allkdic](https://github.com/devxoul/allkdic) |
+| Stats | CPU and memory at a glance; expands into a dashboard with disk, network (↓/↑) and optional GPU, plus top processes by CPU/memory. Measured only while the popover is open (no background polling), off by default | idea from [Stats](https://github.com/exelban/stats) |
+| Switcher | Windows-style window switcher: hold ⌥ (or ⌘, replacing the macOS app switcher) and press Tab to pick a window from a thumbnail grid, including minimized ones. Arrow keys move, click or hover to pick, ⊗ closes a window. Thumbnails are captured only when it opens; off by default, experimental | design reference only: [alt-tab-macos](https://github.com/lwouis/alt-tab-macos) (GPL-3.0, no code used) |
 
-Install: `brew install --cask mordol/tap/t-utilities`, or see [INSTALL.md](INSTALL.md). Plan and design notes: [PLAN.md](PLAN.md).
+The app updates itself from GitHub Releases (the popover's **New update** button; an arrow badge on the menu bar icon shows when one is available). Closing the popover returns focus to the app you were using.
+
+Install: `brew install --cask mordol/tap/t-utilities`, or see [INSTALL.md](INSTALL.md). What changed in each version: [Docs/releases](Docs/releases). Plan and design notes: [PLAN.md](PLAN.md).
 
 ## Resource usage
 
@@ -45,6 +47,8 @@ xcodebuild -project T-Utilities.xcodeproj -scheme T-Utilities -configuration Rel
 ```
 
 Builds are signed with a self-signed certificate named "T-Utilities Dev" so macOS permissions survive updates.
+
+Each module is a local Swift package that can be turned off on its own. Before adding or changing a module, read [Docs/MODULES.md](Docs/MODULES.md): the rules that keep modules independent, and the steps for adding one. `task test` checks those rules and runs every package's tests.
 
 ## License
 
