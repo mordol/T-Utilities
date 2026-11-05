@@ -8,6 +8,7 @@ import TUUI
 @MainActor
 final class StatusItemController: NSObject {
     private let registry: ModuleRegistry
+    private let updater: Updater
     private let openSettings: () -> Void
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let popover = NSPopover()
@@ -18,6 +19,7 @@ final class StatusItemController: NSObject {
 
     init(registry: ModuleRegistry, updater: Updater, popoverControl: PopoverControl, openSettings: @escaping () -> Void) {
         self.registry = registry
+        self.updater = updater
         self.openSettings = openSettings
         super.init()
 
@@ -58,11 +60,42 @@ final class StatusItemController: NSObject {
         let modules = registry.activeModules
         let defaultImage = GridIcon.image()
         defaultImage.accessibilityDescription = "T-Utilities"
-        button.image = modules.lazy.compactMap(\.statusItemImage).first ?? defaultImage
+        let icon = modules.lazy.compactMap(\.statusItemImage).first ?? defaultImage
+        button.image = updater.availableRelease == nil ? icon : Self.updateBadged(icon)
 
         let text = modules.compactMap(\.statusItemText).joined(separator: "  ")
         button.title = text.isEmpty ? "" : " \(text)"
         button.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+    }
+
+    /// Update-available mark, like Tailscale's: a dot at the bottom-right with an "!" cut out, separated from the icon
+    /// by a transparent ring. Stays a template image so it follows the menu bar's appearance.
+    private static func updateBadged(_ icon: NSImage) -> NSImage {
+        let size = icon.size
+        let image = NSImage(size: size, flipped: false) { rect in
+            icon.draw(in: rect)
+            guard let context = NSGraphicsContext.current else { return true }
+            let diameter = (size.height * 0.56).rounded()
+            let dot = NSRect(x: size.width - diameter, y: 0, width: diameter, height: diameter)
+            context.compositingOperation = .destinationOut
+            NSBezierPath(ovalIn: dot.insetBy(dx: -1.5, dy: -1.5)).fill()
+            context.compositingOperation = .sourceOver
+            NSColor.black.setFill()
+            NSBezierPath(ovalIn: dot).fill()
+            let config = NSImage.SymbolConfiguration(pointSize: diameter * 0.72, weight: .heavy)
+            if let mark = NSImage(systemSymbolName: "exclamationmark", accessibilityDescription: nil)?
+                .withSymbolConfiguration(config) {
+                let markRect = NSRect(
+                    x: dot.midX - mark.size.width / 2, y: dot.midY - mark.size.height / 2,
+                    width: mark.size.width, height: mark.size.height
+                )
+                mark.draw(in: markRect, from: .zero, operation: .destinationOut, fraction: 1)
+            }
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = "\(icon.accessibilityDescription ?? "T-Utilities"), 업데이트 있음"
+        return image
     }
 
     @objc private func handleClick(_ sender: NSStatusBarButton) {
