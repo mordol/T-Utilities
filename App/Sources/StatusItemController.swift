@@ -68,7 +68,7 @@ final class StatusItemController: NSObject {
         button.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
     }
 
-    /// Update-available mark, like Tailscale's: a dot at the bottom-right with an "!" cut out, separated from the icon
+    /// Update-available mark, like Tailscale's: a dot at the bottom-right with an up arrow cut out, separated from the icon
     /// by a transparent ring. Stays a template image so it follows the menu bar's appearance.
     private static func updateBadged(_ icon: NSImage) -> NSImage {
         let size = icon.size
@@ -82,8 +82,8 @@ final class StatusItemController: NSObject {
             context.compositingOperation = .sourceOver
             NSColor.black.setFill()
             NSBezierPath(ovalIn: dot).fill()
-            let config = NSImage.SymbolConfiguration(pointSize: diameter * 0.72, weight: .heavy)
-            if let mark = NSImage(systemSymbolName: "exclamationmark", accessibilityDescription: nil)?
+            let config = NSImage.SymbolConfiguration(pointSize: diameter * 0.62, weight: .heavy)
+            if let mark = NSImage(systemSymbolName: "arrow.up", accessibilityDescription: nil)?
                 .withSymbolConfiguration(config) {
                 let markRect = NSRect(
                     x: dot.midX - mark.size.width / 2, y: dot.midY - mark.size.height / 2,
