@@ -69,6 +69,8 @@ public final class PopoverControl {
     public var isShown: () -> Bool = { false }
     public var show: () -> Void = {}
     public var close: () -> Void = {}
+    /// Screen frame of the menu bar icon, for windows that point at it (e.g. a speech-bubble panel).
+    public var anchorFrame: () -> NSRect? = { nil }
 
     public init() {}
 

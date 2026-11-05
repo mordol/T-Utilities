@@ -40,7 +40,7 @@ T-Utilities는 여러 유틸리티를 한 앱에 담지만, **각 모듈은 혼�
 |---|---|
 | `ModuleContext.settings` (`ModuleSettings`) | 모듈 설정 저장소. `value`, `set`, `migrateLegacyKey`. |
 | `ModuleContext.log` | `os.Logger`, 카테고리 = 모듈 id. |
-| `ModuleContext.popover` (`PopoverControl`) | 메인 팝오버 열기·닫기·토글. |
+| `ModuleContext.popover` (`PopoverControl`) | 메인 팝오버 열기·닫기·토글, 메뉴바 아이콘의 화면 위치(`anchorFrame`). |
 | `HotkeyDefinition` | 전역 단축키. 레지스트리가 모듈이 켜져 있는 동안만 등록. |
 | `SupervisedEventTap` | 권한 상실을 3초마다 확인해 스스로 해제하는 세션 이벤트 탭. `onUninstall`(진행 중 제스처 정리), `onReenable`(이벤트 유실), `onInstalledChange`(상태 표시). |
 | `PopoverSize` | 셸이 소유한 팝오버 크기(폭, 목록 높이). 모듈은 **읽기만** 한다. |

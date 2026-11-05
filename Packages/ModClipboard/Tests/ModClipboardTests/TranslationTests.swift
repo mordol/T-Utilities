@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import Testing
 @testable import ModClipboard
 
@@ -96,5 +96,22 @@ struct TranslationCLITests {
             }
         }
         #expect(text == "Hello")
+    }
+}
+
+struct SpeechBubblePlacementTests {
+    let area = NSRect(x: 0, y: 0, width: 1512, height: 945)
+    let size = NSSize(width: 440, height: 331)
+
+    @Test func tailTipHangsUnderTheIcon() {
+        let placement = TranslationPanelController.bubblePlacement(tip: NSPoint(x: 700, y: 940), size: size, area: area, margin: 8)
+        #expect(placement.frame == NSRect(x: 480, y: 609, width: 440, height: 331))
+        #expect(placement.tailX == 220)
+    }
+
+    @Test func nearTheRightEdgeOnlyTheBodySlides() {
+        let placement = TranslationPanelController.bubblePlacement(tip: NSPoint(x: 1450, y: 940), size: size, area: area, margin: 8)
+        #expect(placement.frame.maxX == 1504)
+        #expect(placement.frame.minX + placement.tailX == 1450)
     }
 }

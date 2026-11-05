@@ -42,6 +42,10 @@ final class StatusItemController: NSObject {
         popoverControl.isShown = { [weak self] in self?.popover.isShown ?? false }
         popoverControl.show = { [weak self] in self?.showPopover() }
         popoverControl.close = { [weak self] in self?.popover.performClose(nil) }
+        popoverControl.anchorFrame = { [weak self] in
+            guard let button = self?.statusItem.button, let window = button.window else { return nil }
+            return window.convertToScreen(button.convert(button.bounds, to: nil))
+        }
         installKeyDownMonitor()
         installOutsideClickMonitors()
         observeAppearance()

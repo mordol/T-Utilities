@@ -101,7 +101,7 @@ public final class ClipboardModule: TUModule {
         self.store = store
         self.monitor = monitor
 
-        let panel = TranslationPanelController()
+        let panel = TranslationPanelController { [popover] in popover.anchorFrame() }
         panel.onCopy = { text in
             // Not suppressed: the copied translation becomes a history entry like any other copy.
             NSPasteboard.general.clearContents()

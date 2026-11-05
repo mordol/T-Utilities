@@ -24,11 +24,18 @@ final class TranslationPanelModel: ObservableObject {
     }
 }
 
-/// A floating panel near the cursor that never activates the app, so the app the user was in keeps focus.
+/// A speech bubble hanging from the menu bar icon. It never activates the app, so the app the user was in keeps
+/// focus.
 @MainActor
 final class TranslationPanelController {
     static let noTextCloseDelay: Duration = .seconds(5)
-    private static let size = NSSize(width: 440, height: 320)
+    private static let size = NSSize(width: 440, height: 320 + SpeechBubble.tailHeight)
+    /// Room between the menu bar icon and the tail tip, and between the bubble and the screen edges.
+    private static let gap: CGFloat = 4
+    private static let screenMargin: CGFloat = 8
+
+    /// Screen frame of the menu bar icon the bubble points at.
+    private let anchorFrame: () -> NSRect?
 
     private var panel: TranslationPanel?
     private var closeObserver: NSObjectProtocol?
@@ -39,28 +46,37 @@ final class TranslationPanelController {
     /// Called whenever the panel goes away (button, Esc, close box, auto-close).
     var onClose: (() -> Void)?
 
+    init(anchorFrame: @escaping () -> NSRect?) {
+        self.anchorFrame = anchorFrame
+    }
+
     func show(_ model: TranslationPanelModel) {
         close()
+        let placement = Self.placement(anchor: anchorFrame())
         let panel = TranslationPanel(
-            contentRect: NSRect(origin: .zero, size: Self.size),
-            styleMask: [.titled, .closable, .resizable, .utilityWindow, .nonactivatingPanel],
+            contentRect: placement.frame,
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered, defer: false
         )
-        panel.title = "번역"
         panel.level = .floating
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
         panel.isFloatingPanel = true
-        panel.minSize = NSSize(width: 320, height: 200)
-        panel.contentView = NSHostingView(rootView: TranslationView(
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        let hosting = NSHostingView(rootView: TranslationView(
             model: model,
+            tailX: placement.tailX,
             onCopy: { [weak self] text in
                 self?.onCopy?(text)
                 self?.close()
             },
             onClose: { [weak self] in self?.close() }
         ))
-        panel.setFrame(Self.frameNearCursor(), display: false)
+        hosting.frame = NSRect(origin: .zero, size: placement.frame.size)
+        panel.contentView = hosting
+        panel.setFrame(placement.frame, display: true)
         closeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification, object: panel, queue: .main
         ) { [weak self] _ in
@@ -69,6 +85,8 @@ final class TranslationPanelController {
         self.panel = panel
         panel.orderFrontRegardless()
         panel.makeKey()
+        // The shadow follows the bubble's shape only once it has been drawn.
+        DispatchQueue.main.async { [weak panel] in panel?.invalidateShadow() }
     }
 
     func closeAfterDelay() {
@@ -93,14 +111,28 @@ final class TranslationPanelController {
         onClose?()
     }
 
-    private static func frameNearCursor() -> NSRect {
-        let mouse = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
-        let area = screen?.visibleFrame ?? NSRect(origin: .zero, size: size)
-        var origin = NSPoint(x: mouse.x + 12, y: mouse.y - size.height - 12)
-        origin.x = min(max(origin.x, area.minX), area.maxX - size.width)
-        origin.y = min(max(origin.y, area.minY), area.maxY - size.height)
-        return NSRect(origin: origin, size: size)
+    /// Hangs the bubble below `anchor` with the tail tip under its center. Near a screen edge only the body slides
+    /// inward, so the tail keeps pointing at the icon. Without an anchor: top center of the screen with the mouse.
+    static func placement(anchor: NSRect?, screens: [NSScreen] = NSScreen.screens) -> (frame: NSRect, tailX: CGFloat) {
+        let tip: NSPoint
+        let screen: NSScreen?
+        if let anchor {
+            tip = NSPoint(x: anchor.midX, y: anchor.minY - gap)
+            screen = screens.first { $0.frame.contains(NSPoint(x: anchor.midX, y: anchor.midY)) } ?? NSScreen.main
+        } else {
+            let mouse = NSEvent.mouseLocation
+            screen = screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
+            let area = screen?.visibleFrame ?? .zero
+            tip = NSPoint(x: area.midX, y: area.maxY - gap)
+        }
+        let area = screen?.visibleFrame ?? NSRect(x: tip.x - size.width, y: tip.y - size.height, width: 2 * size.width, height: size.height)
+        return bubblePlacement(tip: tip, size: size, area: area, margin: screenMargin)
+    }
+
+    nonisolated static func bubblePlacement(tip: NSPoint, size: NSSize, area: NSRect, margin: CGFloat) -> (frame: NSRect, tailX: CGFloat) {
+        let x = min(max(tip.x - size.width / 2, area.minX + margin), area.maxX - margin - size.width)
+        let frame = NSRect(x: x, y: tip.y - size.height, width: size.width, height: size.height)
+        return (frame, tip.x - x)
     }
 }
 
@@ -115,6 +147,8 @@ private final class TranslationPanel: NSPanel {
 
 private struct TranslationView: View {
     @ObservedObject var model: TranslationPanelModel
+    /// Tail tip, from the bubble's left edge.
+    let tailX: CGFloat
     let onCopy: (String) -> Void
     let onClose: () -> Void
 
@@ -148,6 +182,9 @@ private struct TranslationView: View {
             }
         }
         .padding(14)
+        .padding(.top, SpeechBubble.tailHeight)
+        .background(.regularMaterial, in: SpeechBubble(tailX: tailX))
+        .overlay(SpeechBubble(tailX: tailX).stroke(Color.primary.opacity(0.15), lineWidth: 1))
     }
 
     @ViewBuilder
@@ -187,5 +224,32 @@ private struct TranslationView: View {
             ProgressView().controlSize(.small)
             Text(title).foregroundStyle(.secondary)
         }
+    }
+}
+
+/// Rounded rectangle with a tail on top pointing up at `tailX` (one outline, so the stroke has no seam).
+struct SpeechBubble: Shape {
+    static let tailHeight: CGFloat = 11
+    static let tailWidth: CGFloat = 22
+    static let radius: CGFloat = 14
+
+    var tailX: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let top = rect.minY + Self.tailHeight
+        let r = Self.radius
+        // Keep the tail on the straight part of the top edge.
+        let x = min(max(tailX, rect.minX + r + Self.tailWidth / 2), rect.maxX - r - Self.tailWidth / 2)
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + r, y: top))
+        path.addLine(to: CGPoint(x: x - Self.tailWidth / 2, y: top))
+        path.addLine(to: CGPoint(x: x, y: rect.minY))
+        path.addLine(to: CGPoint(x: x + Self.tailWidth / 2, y: top))
+        path.addArc(tangent1End: CGPoint(x: rect.maxX, y: top), tangent2End: CGPoint(x: rect.maxX, y: rect.maxY), radius: r)
+        path.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.maxY), tangent2End: CGPoint(x: rect.minX, y: rect.maxY), radius: r)
+        path.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.maxY), tangent2End: CGPoint(x: rect.minX, y: top), radius: r)
+        path.addArc(tangent1End: CGPoint(x: rect.minX, y: top), tangent2End: CGPoint(x: rect.maxX, y: top), radius: r)
+        path.closeSubpath()
+        return path
     }
 }
