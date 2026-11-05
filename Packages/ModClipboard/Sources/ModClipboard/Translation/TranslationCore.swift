@@ -31,17 +31,17 @@ enum TranslationEngine: String, CaseIterable, Identifiable, Sendable {
     /// Empty = the CLI's own default model.
     var defaultModel: String {
         switch self {
-        case .claudeAPI: "claude-opus-5-5"
+        case .claudeAPI: "claude-haiku-5-5"
         case .openAIAPI: "gpt-5-mini"
         case .geminiAPI: "gemini-2.5-flash"
-        case .claudeCLI: "sonnet"
+        case .claudeCLI: "haiku"
         case .codexCLI, .cursorCLI: ""
         }
     }
 
     var modelSuggestions: [String] {
         switch self {
-        case .claudeAPI: ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]
+        case .claudeAPI: ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"]
         case .claudeCLI: ["haiku", "sonnet", "opus"]
         default: []
         }
