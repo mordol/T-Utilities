@@ -5,7 +5,7 @@ import TUUI
 
 /// Mac ↔ Mac remote control over Tailscale. Every Mac is both host (shares its screen while "원격 접속 허용" is on)
 /// and client (opens a viewer window). Tailscale is the security boundary: the host listens only on its 100.x
-/// address and only accepts tailnet peers. Beta: see Docs/MODULES.md.
+/// address and only accepts tailnet peers.
 @MainActor
 @Observable
 public final class RemoteModule: TUModule {
@@ -15,8 +15,7 @@ public final class RemoteModule: TUModule {
         symbol: "display.2",
         requiredPermissions: [.screenRecording, .accessibility],
         hasPopoverSection: true,
-        enabledByDefault: false,
-        isBeta: true
+        enabledByDefault: false
     )
 
     static let defaultMaxWidth = 1920
@@ -32,6 +31,8 @@ public final class RemoteModule: TUModule {
     /// Last `tailscale status`; nil when the CLI is missing or Tailscale is not running.
     private(set) var tailnet: Tailnet.Status?
     private(set) var isRefreshing = false
+    /// macOS Application Firewall, as it applies to this app; read when hosting is turned on and in Settings.
+    private(set) var firewall: Firewall.State?
 
     /// Host side. Off by default: nobody can connect until the user turns it on.
     var isListening: Bool {
@@ -97,6 +98,7 @@ public final class RemoteModule: TUModule {
         guard let host else { return }
         if isListening {
             host.start()
+            refreshFirewall()
         } else {
             host.stop()
         }
@@ -109,6 +111,13 @@ public final class RemoteModule: TUModule {
         if host.session != nil { return }
         host.stop()
         host.start()
+    }
+
+    func refreshFirewall() {
+        Task { [weak self] in
+            let state = await Firewall.state()
+            self?.firewall = state
+        }
     }
 
     func endHostSession() {
@@ -299,12 +308,13 @@ private struct RemoteSettingsView: View {
                 } else if let reason = module.host?.lastSessionEnd {
                     LabeledContent("마지막 세션") { Text(reason).foregroundStyle(.secondary) }
                 }
+                FirewallRow(state: module.firewall)
                 PermissionRow(permission: .screenRecording, purpose: "화면 보내기")
                 PermissionRow(permission: .accessibility, purpose: "마우스·키보드 받기")
             } header: {
                 Text("호스트 (이 Mac)")
             } footer: {
-                Text("켜 두면 같은 Tailscale 네트워크(tailnet)의 기기가 승인 없이 이 Mac을 보고 조작할 수 있습니다. Tailscale 주소(100.x)에서만 기다리며, 동시 접속은 1개, 10분 동안 입력이 없으면 연결을 끊습니다. 잠긴 Mac은 잠금 화면이 보이고 암호를 입력해 열 수 있습니다(베타 검증 중).")
+                Text("켜 두면 같은 Tailscale 네트워크(tailnet)의 기기가 승인 없이 이 Mac을 보고 조작할 수 있습니다. Tailscale 주소(100.x)에서만 기다리며, 동시 접속은 1개, 10분 동안 입력이 없으면 연결을 끊습니다. 잠긴 Mac은 잠금 화면이 보이고 암호를 입력해 열 수 있습니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -347,6 +357,7 @@ private struct RemoteSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { module.refreshFirewall() }
     }
 
     @ViewBuilder
@@ -366,6 +377,34 @@ private struct RemoteSettingsView: View {
     private func add() {
         module.addManualPeer(newPeer)
         newPeer = ""
+    }
+}
+
+private struct FirewallRow: View {
+    let state: Firewall.State?
+
+    var body: some View {
+        switch state {
+        case .notAsked:
+            hint("macOS 방화벽이 켜져 있습니다. 처음 접속받을 때 나오는 창에서 '허용'을 누르세요.", color: .orange)
+        case .blocked:
+            hint("macOS 방화벽이 T-Utilities의 연결을 막고 있습니다. 시스템 설정 → 네트워크 → 방화벽 → 옵션에서 T-Utilities를 '들어오는 연결 허용'으로 바꾸세요.", color: .red)
+        case .allowed:
+            LabeledContent("macOS 방화벽") {
+                Label("허용됨", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+            }
+        case .off, nil:
+            EmptyView()
+        }
+    }
+
+    private func hint(_ text: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(text, systemImage: "exclamationmark.shield").foregroundStyle(color)
+            Button("방화벽 설정 열기") {
+                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Network-Settings.extension?Firewall")!)
+            }
+        }
     }
 }
 

@@ -115,7 +115,11 @@ final class ViewerWindowController: NSObject, NSWindowDelegate {
                 }
             }
         case .waiting(let error):
-            finish("연결할 수 없습니다: \(error.localizedDescription)\n상대 Mac에서 Remote의 원격 접속 허용이 켜져 있는지 확인하세요.")
+            finish("""
+            연결할 수 없습니다: \(error.localizedDescription)
+            상대 Mac에서 Remote의 원격 접속 허용이 켜져 있는지 확인하세요.
+            상대 Mac의 macOS 방화벽이 T-Utilities를 막고 있을 수도 있습니다(상대 Mac의 설정 → Remote에서 확인).
+            """)
         case .failed(let error):
             finish("연결이 끊겼습니다: \(error.localizedDescription)")
         default:

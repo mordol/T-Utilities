@@ -86,6 +86,17 @@ struct TailnetTests {
     }
 }
 
+struct FirewallTests {
+    @Test func parsesSocketFilterOutput() {
+        #expect(Firewall.parse(global: "Firewall is disabled. (State = 0)", app: "") == .off)
+        let on = "Firewall is enabled. (State = 1)"
+        #expect(Firewall.parse(global: on, app: "Incoming connection to /Applications/T-Utilities.app is permitted.") == .allowed)
+        #expect(Firewall.parse(global: on, app: "Incoming connection to /Applications/T-Utilities.app is blocked.") == .blocked)
+        #expect(Firewall.parse(global: on, app: "The application is not part of the firewall") == .notAsked)
+        #expect(Firewall.parse(global: "", app: "") == nil)
+    }
+}
+
 struct StreamSizeTests {
     @Test func scalesDownToMaxWidthKeepingAspect() {
         #expect(ScreenStreamer.streamSize(display: (3024, 1964), maxWidth: 1920) == (1920, 1246))
