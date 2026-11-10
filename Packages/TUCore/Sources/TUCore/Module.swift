@@ -14,6 +14,8 @@ public struct ModuleDescriptor: Identifiable, Hashable, Sendable {
     public let enabledByDefault: Bool
     /// Bundle IDs of standalone apps that conflict with this module when running at the same time.
     public let conflictingBundleIDs: [String]
+    /// In development: hidden, and never started, unless "Show beta features" is on (Docs/MODULES.md).
+    public let isBeta: Bool
 
     public init(
         id: String,
@@ -22,7 +24,8 @@ public struct ModuleDescriptor: Identifiable, Hashable, Sendable {
         requiredPermissions: Set<Permission> = [],
         hasPopoverSection: Bool = false,
         enabledByDefault: Bool = true,
-        conflictingBundleIDs: [String] = []
+        conflictingBundleIDs: [String] = [],
+        isBeta: Bool = false
     ) {
         self.id = id
         self.displayName = displayName
@@ -31,6 +34,7 @@ public struct ModuleDescriptor: Identifiable, Hashable, Sendable {
         self.hasPopoverSection = hasPopoverSection
         self.enabledByDefault = enabledByDefault
         self.conflictingBundleIDs = conflictingBundleIDs
+        self.isBeta = isBeta
     }
 }
 

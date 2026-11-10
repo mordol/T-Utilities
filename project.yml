@@ -34,6 +34,8 @@ packages:
     path: Packages/ModStats
   ModSwitcher:
     path: Packages/ModSwitcher
+  ModRemote:
+    path: Packages/ModRemote
 
 targets:
   T-Utilities:
@@ -58,6 +60,7 @@ targets:
       - package: ModDictionary
       - package: ModStats
       - package: ModSwitcher
+      - package: ModRemote
       - target: AwakeGuard
         embed: true
         codeSign: true

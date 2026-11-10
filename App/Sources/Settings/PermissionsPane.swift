@@ -9,7 +9,7 @@ struct PermissionsPane: View {
         Form {
             Section {
                 ForEach(Permission.allCases, id: \.self) { permission in
-                    let users = registry.descriptors.filter { $0.requiredPermissions.contains(permission) }
+                    let users = registry.visibleDescriptors.filter { $0.requiredPermissions.contains(permission) }
                     LabeledContent {
                         if permissions.isGranted(permission) {
                             Label("허용됨", systemImage: "checkmark.circle.fill").foregroundStyle(.green)

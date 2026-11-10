@@ -53,6 +53,17 @@ final class FailingModule: TUModule {
 }
 
 @MainActor
+@Observable
+final class ExperimentModule: TUModule {
+    static let descriptor = ModuleDescriptor(id: "experiment", displayName: "Experiment", symbol: "flask", hasPopoverSection: true, isBeta: true)
+
+    init(context: ModuleContext) {}
+    func start() async throws {}
+    func stop() async {}
+    func makeSettingsView() -> AnyView { AnyView(EmptyView()) }
+}
+
+@MainActor
 @Suite(.serialized)
 struct ModuleRegistryTests {
     let defaults: UserDefaults
@@ -139,6 +150,28 @@ struct ModuleRegistryTests {
         await newer.setEnabled(false, for: "alpha")
         let relaunched = ModuleRegistry(modules: [AlphaModule.self, BetaModule.self], store: store)
         #expect(relaunched.enabledIDs.isEmpty)
+    }
+
+    @Test func betaModulesRunOnlyWhileShown() async {
+        let store = ModuleStateStore(defaults: defaults)
+        let registry = ModuleRegistry(modules: [AlphaModule.self, ExperimentModule.self], store: store)
+        await registry.startEnabledModules()
+        #expect(registry.active["experiment"] == nil)
+        #expect(!registry.isEnabled("experiment"))
+        #expect(registry.visibleDescriptors.map(\.id) == ["alpha"])
+        #expect(registry.popoverOrder.map(\.id) == ["alpha"])
+
+        await registry.setShowsBeta(true)
+        #expect(registry.active["experiment"] != nil)
+        #expect(registry.popoverOrder.map(\.id) == ["alpha", "experiment"])
+        #expect(ModuleRegistry(modules: [ExperimentModule.self], store: store).showsBeta)
+
+        await registry.setShowsBeta(false)
+        #expect(registry.active["experiment"] == nil)
+        // Hiding keeps the user's choice; showing again restarts it.
+        await registry.setShowsBeta(true)
+        #expect(registry.active["experiment"] != nil)
+        await registry.shutdown()
     }
 
     @Test func moduleSettingsAreNamespaced() {

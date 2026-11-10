@@ -52,6 +52,16 @@ struct GeneralPane: View {
             }
 
             Section {
+                Toggle(isOn: Binding(
+                    get: { registry.showsBeta },
+                    set: { shows in Task { await registry.setShowsBeta(shows) } }
+                )) {
+                    Text("베타 기능 표시")
+                    Text("개발 중인 모듈을 목록에 표시합니다. 표시한 뒤 모듈 설정에서 켜야 동작합니다. 불안정할 수 있습니다.")
+                }
+            }
+
+            Section {
                 Button("오픈소스 라이선스…") { showsLicenses = true }
             }
 

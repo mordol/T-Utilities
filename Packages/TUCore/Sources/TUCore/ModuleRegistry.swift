@@ -12,6 +12,8 @@ public final class ModuleRegistry {
     public private(set) var order: [String]
     public private(set) var active: [String: any TUModule] = [:]
     public private(set) var startErrors: [String: String] = [:]
+    /// Beta modules are listed and started only while this is on. Their enabled state is kept while hidden.
+    public private(set) var showsBeta: Bool
 
     @ObservationIgnored private let types: [String: any TUModule.Type]
     @ObservationIgnored private let store: ModuleStateStore
@@ -27,6 +29,7 @@ public final class ModuleRegistry {
         self.popover = popover
         enabledIDs = store.enabledIDs(descriptors: descriptors)
         order = store.order(descriptors: descriptors)
+        showsBeta = store.showsBeta
         store.saveEnabled(enabledIDs, descriptors: descriptors)
     }
 
@@ -34,8 +37,18 @@ public final class ModuleRegistry {
         descriptors.first { $0.id == id }
     }
 
+    /// Modules shown in Settings: everything except beta modules while beta features are hidden.
+    public var visibleDescriptors: [ModuleDescriptor] {
+        descriptors.filter(isVisible)
+    }
+
+    /// Enabled and visible, i.e. running unless it failed to start.
     public func isEnabled(_ id: String) -> Bool {
-        enabledIDs.contains(id)
+        enabledIDs.contains(id) && descriptor(for: id).map(isVisible) == true
+    }
+
+    private func isVisible(_ descriptor: ModuleDescriptor) -> Bool {
+        showsBeta || !descriptor.isBeta
     }
 
     /// Active modules in user order.
@@ -50,12 +63,22 @@ public final class ModuleRegistry {
 
     /// Descriptors of modules that can appear in the popover, in user order.
     public var popoverOrder: [ModuleDescriptor] {
-        order.compactMap(descriptor(for:)).filter(\.hasPopoverSection)
+        order.compactMap(descriptor(for:)).filter { $0.hasPopoverSection && isVisible($0) }
     }
 
     public func startEnabledModules() async {
-        for id in order where enabledIDs.contains(id) {
+        for id in order where isEnabled(id) {
             await reconcile(id)
+        }
+    }
+
+    /// Shows or hides beta modules; hiding stops the running ones, showing restarts those left enabled.
+    public func setShowsBeta(_ shows: Bool) async {
+        guard shows != showsBeta else { return }
+        showsBeta = shows
+        store.saveShowsBeta(shows)
+        for descriptor in descriptors where descriptor.isBeta {
+            await reconcile(descriptor.id)
         }
     }
 
@@ -93,8 +116,8 @@ public final class ModuleRegistry {
         transitioning.insert(id)
         defer { transitioning.remove(id) }
 
-        while enabledIDs.contains(id) != (active[id] != nil) {
-            if enabledIDs.contains(id) {
+        while isEnabled(id) != (active[id] != nil) {
+            if isEnabled(id) {
                 guard await activate(id) else { break }
             } else {
                 await deactivate(id)

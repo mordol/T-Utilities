@@ -24,6 +24,7 @@ T-Utilities는 여러 유틸리티를 한 앱에 담지만, **각 모듈은 혼�
 | R9 | 시스템 전역 상태(전원, 뚜껑 닫힘, 포인터, 대지, 다른 앱 설정)를 바꾸면 `stop()`에서 원래대로 되돌린다. 사용자가 설정 화면에서 직접 바꾸는 macOS 설정 대리 토글만 예외(§4). | 리뷰 |
 | R10 | 모든 모듈 테스트에 `ModuleContractTests`가 있다. 권한·하드웨어가 필요 없는 모듈은 `starting: true`로 `start()`까지 확인한다. | 스크립트 |
 | R11 | 셸은 특정 모듈을 import하거나 모듈 id로 분기하지 않는다(`AppModules.swift` 제외). 모듈이 셸 기능이 필요하면 `TUModule`/`ModuleContext`에 범용 계약을 추가한다. | 스크립트(import), 리뷰 |
+| R12 | 기기 두 대 이상이 있어야 확인할 수 있는 모듈(예: Remote)이나 실기기 검증 전 모듈은 `isBeta: true`로 먼저 릴리스한다. 베타 모듈은 설정 → 일반 "베타 기능 표시"(기본 꺼짐)를 켜야 목록에 보이고 시작된다. 숨기면 실행 중이던 모듈이 멈추고, 켜 둔 상태는 저장되어 다시 표시하면 돌아온다. 검증이 끝나면 `isBeta`를 지우고 릴리스 노트에 알린다. | 리뷰 |
 
 ### 확인 방법
 
@@ -60,7 +61,7 @@ T-Utilities는 여러 유틸리티를 한 앱에 담지만, **각 모듈은 혼�
 
 1. **범위 확인**: 기존 모듈과 기능이 겹치면 새 모듈 대신 그 모듈의 옵션으로 넣을지 먼저 정한다. 다른 모듈의 상태가 필요하다면 설계를 다시 본다(R1).
 2. **패키지 생성**: `Packages/Mod<Name>/`에 `Package.swift`(의존성은 TUCore/TUUI/외부만), `Sources/Mod<Name>/<Name>Module.swift`, `Tests/Mod<Name>Tests/`.
-3. **descriptor**: id(소문자, 유일), 표시 이름, SF Symbol, 필요한 권한, 팝오버 섹션 여부, **위험한 모듈(이벤트 탭, 시스템 설정 변경)은 `enabledByDefault: false`**, 충돌하는 앱 번들 id.
+3. **descriptor**: id(소문자, 유일), 표시 이름, SF Symbol, 필요한 권한, 팝오버 섹션 여부, **위험한 모듈(이벤트 탭, 시스템 설정 변경)은 `enabledByDefault: false`**, 충돌하는 앱 번들 id, **여러 기기나 실기기 검증이 필요하면 `isBeta: true`**(R12).
 4. **수명 구현**: §2의 R2~R5, R7, R9를 지키도록 `init`/`start`/`stop`을 작성한다. 이벤트 탭은 `SupervisedEventTap`.
 5. **계약 테스트**: `Tests/Mod<Name>Tests/ModuleContractTests.swift`를 다른 모듈에서 복사해 타입 이름만 바꾼다. 권한·하드웨어가 필요 없으면 `starting: true`.
 6. **등록**: `project.yml`의 `packages:`와 `T-Utilities` 타깃 `dependencies:`, `App/Sources/AppModules.swift`의 import와 `all` 목록에 추가하고 `xcodegen generate`.

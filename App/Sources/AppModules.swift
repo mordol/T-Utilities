@@ -4,6 +4,7 @@ import ModClipboard
 import ModClock
 import ModDictionary
 import ModMouse
+import ModRemote
 import ModStats
 import ModSwitcher
 import ModWindows
@@ -22,5 +23,6 @@ enum AppModules {
         DictionaryModule.self,
         StatsModule.self,
         SwitcherModule.self,
+        RemoteModule.self,
     ]
 }

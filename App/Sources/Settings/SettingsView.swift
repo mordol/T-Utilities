@@ -22,9 +22,12 @@ struct SettingsView: View {
                 Label("팝오버", systemImage: "rectangle.stack").tag(SettingsPage.popover)
                 Label("권한", systemImage: "lock.shield").tag(SettingsPage.permissions)
                 Section("모듈") {
-                    ForEach(registry.descriptors) { descriptor in
+                    ForEach(registry.visibleDescriptors) { descriptor in
                         HStack {
                             Label(descriptor.displayName, systemImage: descriptor.symbol)
+                            if descriptor.isBeta {
+                                Text("BETA").font(.caption2.weight(.semibold)).foregroundStyle(.orange)
+                            }
                             Spacer()
                             StatusBadge(
                                 enabled: registry.isEnabled(descriptor.id),

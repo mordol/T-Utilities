@@ -45,6 +45,7 @@ public struct ModuleStateStore {
     static let orderKey = "modules.order"
     /// Modules the user has seen; modules added in later versions get their default enabled state.
     static let knownKey = "modules.known"
+    static let showsBetaKey = "modules.showBeta"
 
     public let defaults: UserDefaults
 
@@ -74,5 +75,13 @@ public struct ModuleStateStore {
 
     public func saveOrder(_ ids: [String]) {
         defaults.set(ids, forKey: Self.orderKey)
+    }
+
+    public var showsBeta: Bool {
+        defaults.bool(forKey: Self.showsBetaKey)
+    }
+
+    public func saveShowsBeta(_ shows: Bool) {
+        defaults.set(shows, forKey: Self.showsBetaKey)
     }
 }
